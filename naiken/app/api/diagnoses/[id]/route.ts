@@ -1,12 +1,10 @@
-import { createDemo } from '@/lib/demo';
-import type { DemoKind, Diagnosis } from '@/lib/diagnosis-types';
+import type { Diagnosis } from '@/lib/diagnosis-types';
 import { findDiagnosis, saveDiagnosis } from '@/lib/diagnosis-store';
 import { finalizeObservation } from '@/lib/rules';
 
 export async function GET(_request: Request, context: {params:Promise<{id:string}>}) {
   const {id} = await context.params;
   const headers = {'Cache-Control':'no-store'};
-  if (/^demo-(old|unknown|blocked)$/.test(id)) return Response.json(createDemo(id.slice(5) as DemoKind,id), {headers});
   if (!/^[0-9a-f-]{36}$/.test(id)) return Response.json({error:'診断結果が見つかりません。'}, {status:404,headers});
   try {
     const value = await findDiagnosis(id);

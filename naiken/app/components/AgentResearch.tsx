@@ -120,7 +120,6 @@ export default function AgentResearch({ diagnosis }: { diagnosis: Diagnosis }) {
   const researchComplete = research?.status === 'completed' && !!research.report;
   const visibleError = error || startError;
 
-  if (diagnosis.mode === 'demo') return <section className="agent-demo-note" aria-label="AI調査について"><span className="agent-label">AI AGENT</span><p>このサンプルでは AI による実際の調査は行っていません。公開サイトの内見レポートから、追加調査を依頼できます。</p></section>;
   if (!eligible) return null;
 
   return <section className="agent-research" aria-labelledby="agent-heading">

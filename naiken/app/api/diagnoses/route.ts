@@ -1,21 +1,16 @@
-import type { Diagnosis, DemoKind } from '@/lib/diagnosis-types';
+import type { Diagnosis } from '@/lib/diagnosis-types';
 import { normalizeTarget } from '@/lib/targets';
 import { observe } from '@/lib/scanner';
-import { createDemo, demoList } from '@/lib/demo';
 import { allowRequest, fingerprint, reserveDiagnosis, saveDiagnosis } from '@/lib/diagnosis-store';
 import { env } from 'cloudflare:workers';
 import { extractComponentVersions } from '@/lib/version-extraction';
 import { createVersionCache } from '@/lib/version-extraction-store';
 
-export async function GET() {
-  return Response.json({diagnoses:demoList()}, {headers:{'Cache-Control':'no-store'}});
-}
-
 export async function POST(request: Request) {
   const origin = request.headers.get('origin');
   if (origin && origin !== new URL(request.url).origin) return Response.json({error:'この画面から診断を開始してください。'}, {status:403});
   if (!request.headers.get('content-type')?.includes('application/json')) return Response.json({error:'JSON形式で送信してください。'}, {status:415});
-  let body: {url?:unknown;demo?:unknown};
+  let body: {url?:unknown};
   try {
     const raw = await request.text();
     if (raw.length > 4096) return Response.json({error:'入力が長すぎます。'}, {status:413});
@@ -23,12 +18,6 @@ export async function POST(request: Request) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error();
   } catch { return Response.json({error:'入力を確認してください。'}, {status:400}); }
   try {
-    if (body.demo !== undefined) {
-      if (!['old','unknown','blocked'].includes(String(body.demo))) return Response.json({error:'サンプルが見つかりません。'}, {status:400});
-      const kind = body.demo as DemoKind;
-      // Stable sample IDs are independent of the database and never trigger network requests.
-      return Response.json({...createDemo(kind, `demo-${kind}`), status:'preliminary'}, {headers:{'Cache-Control':'no-store'}});
-    }
     if (typeof body.url !== 'string' || body.url.length > 2048) return Response.json({error:'診断するURLを入力してください。'}, {status:400});
     let target;
     try { target = normalizeTarget(body.url); }
