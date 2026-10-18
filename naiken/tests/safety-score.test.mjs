@@ -21,10 +21,19 @@ function apiAnswer(probabilities = [0, 0, 0.4, 0.6, 0]) {
     probabilities: probabilities.map((probability, value) => ({ value, label: SAFETY_LEVELS[value].label, probability })) }] };
 }
 const fakeApi = async () => Response.json(apiAnswer());
-function harness(t, value = diagnosis(), config = { apiKey: 'test-key', fetcher: fakeApi }) {
+function completedResearch(overrides = {}) {
+  return { status: 'completed', report: { summary: '調査済み', findings: [], limitations: [] }, ...overrides };
+}
+function harness(t, value = diagnosis(), config = { apiKey: 'test-key', fetcher: fakeApi }, research = completedResearch()) {
   const sql = new DatabaseSync(':memory:'); t.after(() => sql.close());
   sql.exec('CREATE TABLE diagnoses (id TEXT PRIMARY KEY, payload TEXT)');
+  sql.exec('CREATE TABLE research_jobs (diagnosis_id TEXT PRIMARY KEY, payload TEXT)');
   sql.prepare('INSERT INTO diagnoses VALUES (?, ?)').run(value.id, JSON.stringify(value));
+  const setResearch = job => {
+    if (job) sql.prepare('INSERT OR REPLACE INTO research_jobs VALUES (?, ?)').run(value.id, JSON.stringify(job));
+    else sql.prepare('DELETE FROM research_jobs WHERE diagnosis_id = ?').run(value.id);
+  };
+  setResearch(research);
   const database = { prepare(query) { return { bind(...values) { return {
     async first() { return sql.prepare(query).get(...values) ?? null; },
     async run() { return sql.prepare(query).run(...values); },
@@ -32,7 +41,7 @@ function harness(t, value = diagnosis(), config = { apiKey: 'test-key', fetcher:
   const store = createSafetyScoreStore(database);
   const deps = { store, config, allowRequest: async () => true, fingerprint: async () => 'test-visitor' };
   const request = (start = false, origin = 'https://naiken.example') => handleSafetyScore(new Request(`https://naiken.example/api/diagnoses/${value.id}/safety-score`, { method: start ? 'POST' : 'GET', headers: { Origin: origin } }), value.id, start, deps);
-  return { sql, store, deps, request };
+  return { sql, store, deps, request, setResearch };
 }
 
 test('Decisions contract uses score levels, fixed model, protected server headers and 0–100 normalization', async () => {
@@ -119,6 +128,69 @@ test('rate limits reject before reserving or calling Decisions', async t => {
   let calls = 0; const h = harness(t, diagnosis(), { apiKey: 'test-key', fetcher: async () => { calls++; return fakeApi(); } });
   h.deps.allowRequest = async () => false;
   const result = await h.request(true); assert.equal(result.status, 429); assert.equal(result.headers.get('retry-after'), '60');
+  assert.equal((await h.store.read(ID)).safetyScore, undefined); assert.equal(calls, 0);
+});
+
+test('GET and POST cannot score before saved AI research and its report are complete', async t => {
+  for (const research of [null, { status: 'starting' }, { status: 'running' },
+    { status: 'failed', retryable: true }, { status: 'failed', retryable: false },
+    { status: 'completed' }, completedResearch({ report: null }), completedResearch({ report: [] })]) {
+    let calls = 0;
+    const h = harness(t, diagnosis(), { apiKey: 'test-key', fetcher: async () => { calls++; return fakeApi(); } }, research);
+    h.deps.allowRequest = async () => { assert.fail('must not consume rate limit before research completes'); };
+    h.deps.fingerprint = async () => { assert.fail('must not fingerprint before research completes'); };
+    for (const start of [false, true]) {
+      const response = await h.request(start); const result = await response.json();
+      assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(result.assessment, null); assert.match(result.unavailableReason, /AIの内見が完了/);
+    }
+    assert.equal((await h.store.read(ID)).safetyScore, undefined); assert.equal(calls, 0);
+  }
+});
+
+test('legacy scores remain hidden and stale reservations unchanged until AI research completes', async t => {
+  const stale = { ...safetyState('scoring'), updatedAt: new Date(Date.now() - 61_000).toISOString() };
+  const savedScores = [
+    { ...safetyState('scoring'), ...parseSafetyAnswer(apiAnswer()), status: 'completed' },
+    stale,
+    safetyState('failed', '以前の評価が失敗しました。'),
+  ];
+  for (const safetyScore of savedScores) {
+    for (const research of [null, { status: 'starting' }, { status: 'running' }, { status: 'failed' }, { status: 'completed' }]) {
+      const h = harness(t, diagnosis({ safetyScore }), { apiKey: 'test-key', fetcher: async () => { assert.fail('must not call API'); } }, research);
+      for (const start of [false, true]) {
+        const result = await (await h.request(start)).json();
+        assert.equal(result.assessment, null); assert.ok(result.unavailableReason);
+      }
+      assert.deepEqual((await h.store.read(ID)).safetyScore, safetyScore);
+      h.setResearch(completedResearch());
+      const result = await (await h.request()).json();
+      assert.equal(result.assessment.status, safetyScore === stale ? 'failed' : safetyScore.status);
+      if (safetyScore.status === 'completed') assert.equal(result.assessment.score, safetyScore.score);
+    }
+  }
+});
+
+test('reservation itself requires completed research for the same diagnosis with a report', async t => {
+  const h = harness(t, diagnosis(), undefined, null);
+  // A completed job for another diagnosis must not unlock this diagnosis.
+  h.sql.prepare('INSERT INTO research_jobs VALUES (?, ?)').run('other-diagnosis', JSON.stringify(completedResearch()));
+  for (const research of [null, { status: 'starting' }, { status: 'running' }, { status: 'failed' },
+    { status: 'completed' }, completedResearch({ report: null }), completedResearch({ report: [] })]) {
+    h.setResearch(research);
+    assert.equal(await h.store.reserve(ID, safetyState('scoring')), false);
+    assert.equal((await h.store.read(ID)).safetyScore, undefined);
+  }
+  h.setResearch(completedResearch());
+  assert.equal(await h.store.reserve(ID, safetyState('scoring')), true);
+  assert.equal(await h.store.reserve(ID, safetyState('scoring')), false);
+});
+
+test('research becoming ineligible before reservation never calls Decisions', async t => {
+  let calls = 0; const h = harness(t, diagnosis(), { apiKey: 'test-key', fetcher: async () => { calls++; return fakeApi(); } });
+  h.deps.allowRequest = async () => { h.setResearch({ status: 'running' }); return true; };
+  const response = await h.request(true);
+  assert.equal(response.status, 202); assert.equal((await response.json()).assessment, null);
   assert.equal((await h.store.read(ID)).safetyScore, undefined); assert.equal(calls, 0);
 });
 

@@ -18,6 +18,10 @@ export async function handleSafetyScore(request: Request, id: string, start: boo
     const diagnosis = await deps.store.read(id);
     if (!diagnosis) return reply({ error: '点検結果が見つかりません。' }, 404);
     const configured = !!deps.config;
+    // Check the saved research before exposing legacy scores or starting Decisions.
+    if (!await deps.store.researchCompleted(id)) {
+      return reply({ configured, assessment: null, unavailableReason: 'AIの内見が完了してから安全性を評価できます。' });
+    }
     if (diagnosis.safetyScore?.status === 'scoring' && Date.now() - Date.parse(diagnosis.safetyScore.updatedAt) > 60_000) {
       await deps.store.finish(id, safetyState('failed', '評価が中断されたか、結果を保存できませんでした。重複実行を防ぐため自動再送しません。'));
       diagnosis.safetyScore = (await deps.store.read(id))?.safetyScore;
