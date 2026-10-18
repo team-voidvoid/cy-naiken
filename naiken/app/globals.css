@@ -15,3 +15,10 @@
 /* The AI follow-up uses the same portal panels as the inspection report. */
 .agent-research{margin-top:23px;background:#fff;border-color:#d3e3c5;border-top:3px solid #76b64c;border-radius:4px;padding:24px 27px}.agent-heading h2{font-size:21px}.agent-heading .eyebrow{color:#7aa056}.agent-label{color:#60943c;border-color:#c7dcb7;background:#f5faef;border-radius:3px}.agent-setup{background:#f5f9f0;border-color:#cddfc0;border-radius:4px}.agent-setup-badge{background:#e9f3df;color:#789660}.agent-start>.primary-button{background:#ee7916}.agent-progress{border-radius:4px;background:#f5faf0}.agent-finding{border-radius:4px;border-color:#dce6d3}.agent-finding-index{font:700 12px/1.5 Arial,sans-serif;color:#6d9f43;background:#edf6e4;border-radius:3px;width:25px;height:25px;display:grid;place-items:center;flex-shrink:0}.agent-evidence{background:#f7faf3}.agent-demo-note{background:#fff;border-radius:4px;margin-top:18px}.agent-boundary{border-top-color:#e1e9d9}.agent-result-meta{border-bottom-color:#e0e8d8}.agent-error,.agent-failed{border-radius:4px}.agent-progress-controls{align-items:flex-start}.agent-progress-controls>.text-button{flex-shrink:0}.agent-progress-controls>span{line-height:1.9}@media(max-width:700px){.agent-research{margin-top:18px;padding:19px 15px}.agent-heading h2{font-size:17px}.agent-finding-index{width:22px;height:22px;font-size:10px}.agent-demo-note{margin-top:15px}}
 .agent-advisor{display:flex;align-items:center;gap:14px}.agent-advisor .dot-mascot{width:64px;height:64px;object-fit:contain;flex-shrink:0}.hero-mascot,.guide-mascot{object-fit:contain}@media(max-width:700px){.agent-advisor{gap:10px}.agent-advisor .dot-mascot{width:46px;height:46px}.agent-heading .agent-advisor h2{font-size:16px}}
+
+.archive-history { margin: 24px 0; padding: 24px; background: #fff; border: 1px solid #ddd; border-radius: 12px; }
+.archive-history ul { padding-left: 24px; }
+.archive-history li { margin: 12px 0; }
+.archive-history a { color: #246737; text-decoration: underline; }
+.archive-button { padding: 12px 18px; border: 1px solid #246737; border-radius: 8px; cursor: pointer; }
+.archive-button:disabled { opacity: .6; cursor: wait; }
