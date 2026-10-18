@@ -23,6 +23,7 @@ export function finalizeObservation(observation: Observation) {
   };
   const findings = observation.findings.map((item) => ({ ...item, evidence: [...item.evidence] }));
   const components = observation.components.map((component): ComponentInfo => {
+    if (component.detectionBasis === 'inferred') return { ...component, verified: false, releaseDate: undefined, support: '関連技術からの推定です。この部品自体の版・公開年は未確認です。古さの点数には含めません。' };
     const reference = REFERENCES[`${component.name}@${component.version}`];
     if (!reference) return { ...component, verified: false, support: '公開日・保守状況は未照合です。古さの点数には含めません。' };
     const enriched = { ...component, releaseDate: reference.date, support: reference.support, sourceUrl: reference.url, verified: true };
@@ -38,6 +39,11 @@ export function finalizeObservation(observation: Observation) {
   const oldestYear = years.length ? Math.min(...years) : undefined;
   if (observation.scriptsSkipped) unknowns.push(`直接参照された JS のうち ${observation.scriptsSkipped} 本は、許可範囲・上限・取得状態により未確認です。`);
   if (components.some((item) => !item.version)) unknowns.push('部品名の手掛かりがあっても、正確な版が分からない部品があります。');
+  if (components.some((item) => item.versionStatus === 'multiple')) unknowns.push('複数の版の記載がある部品は、単一の稼働版に決めず公開年・古さの採点を保留しています。');
+  if (observation.technologyCoverage) {
+    unknowns.push('技術の検出は公開HTML・ヘッダー・取得したJSの規則照合です。ブラウザでJavaScriptを実行していないため、実行後だけに見える技術・版は未確認です。');
+    if (observation.technologyCoverage.inputTruncated || !observation.technologyCoverage.htmlParsedCompletely || observation.technologyCoverage.evidenceTruncated) unknowns.push('技術の解析入力または根拠数が上限に達しました。省略部分に別の部品・版があるかは未確認です。');
+  }
   return {
     findings, components, oldestYear, unknowns,
     headline: oldestYear ? `${oldestYear}年製の部品が、今も顔を出す。` : findings.length ? '預ける前に、もう一歩だけ確かめたい。' : '見える範囲から、判断の材料を。',

@@ -1,7 +1,7 @@
 export type Confidence = 'confirmed' | 'inferred' | 'unknown';
 export type DiagnosisStatus = 'observing' | 'preliminary' | 'matching' | 'complete' | 'failed';
 export type DemoKind = 'old' | 'unknown' | 'blocked';
-export interface Evidence { label: string; value: string; url?: string }
+export interface Evidence { label: string; value: string; url?: string; ruleId?: string }
 export interface Finding {
   id: string; category: 'headers' | 'cookies' | 'https' | 'components' | 'csrf';
   title: string; explanation: string; confidence: Confidence; points: number; evidence: Evidence[];
@@ -9,6 +9,14 @@ export interface Finding {
 export interface ComponentInfo {
   name: string; version?: string; evidence: Evidence[]; releaseDate?: string;
   support?: string; sourceUrl?: string; verified?: boolean;
+  technologyId?: string; package?: { name: string; ecosystem: 'npm' };
+  detectionBasis?: 'observed' | 'inferred'; detectionConfidence?: 'high' | 'medium'; confidenceScore?: number;
+  versionStatus?: 'declared' | 'referenced' | 'runtime' | 'multiple' | 'incomplete' | 'unknown'; versions?: string[];
+}
+export interface TechnologyCoverage {
+  engine: 'wappalyzer-style'; mode: 'static'; browserExecuted: false;
+  supportedTechnologies: number; observedSignals: string[];
+  htmlParsedCompletely: boolean; evidenceTruncated: boolean; inputTruncated: boolean;
 }
 export interface Observation {
   url: string; finalUrl: string; status: number; fetchedAt: string;
@@ -16,6 +24,7 @@ export interface Observation {
   outcome: 'ok' | 'blocked' | 'timeout' | 'error'; message?: string;
   findings: Finding[]; components: ComponentInfo[];
   checkedCategories: string[]; scriptsFetched: number; scriptsSkipped: number;
+  technologyCoverage?: TechnologyCoverage;
 }
 export interface Diagnosis {
   id: string; url: string; siteName: string; mode: 'live' | 'demo';
