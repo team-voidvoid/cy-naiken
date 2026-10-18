@@ -1,9 +1,17 @@
 import { env } from 'cloudflare:workers';
 import type { Diagnosis } from './diagnosis-types';
+import { historyQuery, historyResponse, type HistoryOptions, type HistoryRow } from './diagnosis-history';
+import { reserveDiagnosisIn } from './diagnosis-reservation';
 
 function database() {
   if (!env.DB) throw new Error('診断結果の保存先が利用できません。');
   return env.DB;
+}
+
+export async function listDiagnosisHistory(options: HistoryOptions) {
+  const { sql, bindings } = historyQuery(options);
+  const result = await database().prepare(sql).bind(...bindings).all<HistoryRow>();
+  return historyResponse(result.results, options.limit);
 }
 
 export async function findDiagnosis(id: string): Promise<Diagnosis | null> {
@@ -12,21 +20,7 @@ export async function findDiagnosis(id: string): Promise<Diagnosis | null> {
 }
 
 export async function reserveDiagnosis(value: Diagnosis, cacheKey: string): Promise<{value:Diagnosis; owned:boolean}> {
-  const now = Date.now();
-  // Preserve old result links while releasing expired reservations atomically.
-  // In-flight work is keyed by URL, independent of wall-clock bucket boundaries.
-  await database().prepare(`UPDATE diagnoses SET cache_key = 'archive:' || id
-    WHERE cache_key = ? AND (
-      (json_extract(payload, '$.status') IN ('complete','preliminary') AND created_at < ?)
-      OR (json_extract(payload, '$.status') = 'failed' AND created_at < ?)
-      OR (json_extract(payload, '$.status') = 'observing' AND created_at < ?)
-    )`).bind(cacheKey, now - 600_000, now - 30_000, now - 60_000).run();
-  const row = await database().prepare('INSERT INTO diagnoses (id, cache_key, payload, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(cache_key) DO NOTHING RETURNING id')
-    .bind(value.id, cacheKey, JSON.stringify(value), now).first<{id:string}>();
-  if (row) return {value, owned:true};
-  const existing = await database().prepare('SELECT payload FROM diagnoses WHERE cache_key = ?').bind(cacheKey).first<{payload:string}>();
-  if (!existing) throw new Error('受付が混み合っています。もう一度お試しください。');
-  return {value:JSON.parse(existing.payload), owned:false};
+  return reserveDiagnosisIn(database(), value, cacheKey);
 }
 
 export async function saveDiagnosis(value: Diagnosis, expectedStatus?: Diagnosis['status']) {

@@ -2,7 +2,7 @@
 
 **預ける前に、内見を。** 公開ページに見える部品・設定を読み取り、個人情報を預ける判断材料を出すプロトタイプです。
 
-画面は[SUUMO](https://suumo.jp/)の不動産ポータルを参考に、URL検索・サンプル一覧・設備表風の点検結果で構成しています。案内役は[OpenAI dotsの公式紹介ページ](https://learn.chatgpt.com/docs/dots)に掲載されているAlfredです（[画像出典](https://learn.chatgpt.com/images/codex/dots/portrait-alfred.webp)）。キャラクターの表示とAI調査機能は別で、調査にはAgents APIを使います。
+画面は[SUUMO](https://suumo.jp/)の不動産ポータルを参考に、URL検索・みんなの調査一覧・設備表風の点検結果で構成しています。案内役は[OpenAI dotsの公式紹介ページ](https://learn.chatgpt.com/docs/dots)に掲載されているAlfredです（[画像出典](https://learn.chatgpt.com/images/codex/dots/portrait-alfred.webp)）。キャラクターの表示とAI調査機能は別で、調査にはAgents APIを使います。
 
 ## 起動
 
@@ -13,6 +13,7 @@ npm install
 npm run build
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_charming_network.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_tricky_namorita.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_left_hiroim.sql
 npm run dev
 ```
 
@@ -21,12 +22,17 @@ npm run dev
 ```sh
 npm run build
 npm run typecheck
+npm test
 ```
+
+`npm test`は履歴検索・キャッシュ期限・OGP抽出と画像取得の制限を、外部通信なしで検証します。既存のローカル環境にも、新しい `0004_left_hiroim.sql` を上記の方法で一度適用してください。
 
 ## 試せること
 
 - 任意の公開ドメインの URL 入力と、対象ページの確認。
 - 取得中・速報・照合完了の表示、結果 URL からの再表示。
+- 全利用者が保存した実際の調査を、サイト名・URLで検索。URLごとの最新結果と過去の調査履歴を閲覧。
+- 調査時のOGP画像付きカード表示。画像がない・取得できないサイトは代替表示。
 - 最大3件の気になる点、検出した部品の公開年、確定／推測／見えないの分類と根拠。
 - Wappalyzer方式の独自辞書による42技術の検出、対応するnpmパッケージ名・版・照合ルールの表示。
 - 取得拒否や材料不足の表示。取得できない項目は採点しません。
@@ -58,11 +64,13 @@ Sites の React / Vinext スターターを使用しています。
 | エンドポイント | 用途 |
 |---|---|
 | `GET /api/targets` | 入力例の一覧（診断対象を限定する一覧ではありません） |
-| `GET /api/diagnoses` | 3件のサンプル結果 |
+| `GET /api/diagnoses` | 3件のサンプル結果（互換用） |
+| `GET /api/history` | 実際の調査の最新一覧。`q`でサイト名・URL検索、`url`で同じURLの履歴、`limit`・`cursor`でページ送り |
+| `GET /api/diagnoses/{id}/image` | 保存済みOGP画像の取得。画像なし・取得失敗時は代替表示 |
 | `POST /api/diagnoses` | `{"url":"https://www.kfc.co.jp/"}` で実際の点検を開始 |
 | `POST /api/diagnoses` | `{"demo":"old"}` でサンプルの速報（`unknown` / `blocked` も利用可能） |
 | `GET /api/diagnoses/{id}` | 進捗・結果を取得。速報から固定資料との照合を完了 |
-| `POST /api/diagnoses/{id}/research` | AI調査を明示的に開始（サインインが必要） |
+| `POST /api/diagnoses/{id}/research` | AI調査を明示的に開始（ログイン不要） |
 | `GET /api/diagnoses/{id}/research` | 保存済みAI調査を進め、進捗・結果を取得 |
 
 POST は `Content-Type: application/json` を指定します。HTTP / HTTPS の一般公開ドメインを指定できます。スキームを省略した場合は HTTPS を補い、パスとクエリを保持し、フラグメント（`#` 以降）は取り除きます。たとえば `/coco-to/` はルートURLへ置き換えません。画面の「入力例」は候補であり、それ以外の公開サイトも入力できます。
@@ -79,7 +87,11 @@ Cloudflare Workers向けに文字列の解析部分を導入しています。�
 
 通常の点検では、公開日・保守状況は仕様書に記録された公式資料（2026年10月17日確認）の固定表を使い、文章も定型文で生成します。表にない版は未照合のまま残します。jQuery Mobile の非推奨化を EOL と同一視せず、styled-components 5.3.11 の EOL は未確認と表示します。AI調査は別枠に表示し、既存の点数には加算しません。Decisions API・dotsは未接続です。
 
-診断結果は D1 に保存します。同じURLの進行中処理を共有し、完成した観測は10分間再利用します。観測は受付リクエスト内で行い、保存済み速報からの照合は結果取得時に実行します。ブラウザを閉じる前に受付が完了していれば、診断URLから再開できます。
+診断結果は D1 に保存します。同じURLの進行中処理を共有し、正常に取得した結果とアクセス拒否の記録は1週間（7日間）再利用します。一時的な通信失敗・タイムアウト・HTTP 429は30秒後から再試行できます。観測は受付リクエスト内で行い、保存済み速報からの照合は結果取得時に実行します。ブラウザを閉じる前に受付が完了していれば、診断URLから再開できます。
+
+調査URLと結果は全利用者に公開されます。入力画面にも公開範囲を表示し、個人用URLを入力しないよう案内します。公開一覧はサンプルと取得中・受付失敗を除き、URLごとの最新結果を表示します。取得拒否やタイムアウトも、確認できなかった結果として表示します。パス・クエリを含む同じ正規化URLごとに履歴を保持し、1週間を過ぎて再調査しても古い結果URLとAIレポートは残ります。一覧や履歴の閲覧だけで新しい点検やAI調査を開始しません。
+
+OGP情報は点検で取得したHTMLから保存します。OGP未保存の過去の結果は代替画像で表示し、次の再調査時に画像情報を取得します。画像は保存済みURLだけをサーバ側で取得し、公開ネットワーク・転送先・画像形式・取得時間・サイズを制限します。取得時の画像URLを保存するため、配信元で画像が変更・削除された場合は表示内容が変わることがあります。Webページ全体や画像ファイルそのもののアーカイブではありません。
 
 ## AI調査の設定と流れ
 

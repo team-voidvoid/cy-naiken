@@ -3,6 +3,7 @@ import { normalizeTarget, validateFetchUrl } from './targets.ts';
 import { assertPublicDns } from './public-dns.ts';
 import { publicFetch } from './public-fetch.ts';
 import { inspectTechnologies, referencedScripts, type ScriptSource } from './technology/scanner.ts';
+import { extractSitePreview } from './site-preview.ts';
 
 const LIMITS = { bytes: 10 * 1024 * 1024, requests: 28, scripts: 5, timeout: 19_000 };
 const REQUEST_TIMEOUTS = { html: 7_000, http: 2_000, script: 3_000 };
@@ -101,6 +102,7 @@ export async function observe(input: string, fetcher: Fetcher = publicFetch, tim
     if (!page.response.ok || !/text\/html|application\/xhtml\+xml/i.test(page.response.headers.get('content-type') ?? '')) throw new Error('通常の HTML ページを取得できませんでした。');
     observation.outcome = 'ok';
     observation.hash = page.hash;
+    observation.preview = extractSitePreview(page.text, page.url);
     observation.checkedCategories = ['headers', 'cookies', 'components', 'csrf'];
     const headers = page.response.headers;
     const html = page.text.replace(/<!--[\s\S]*?-->/g, '');

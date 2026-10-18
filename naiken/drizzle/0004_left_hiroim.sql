@@ -1,0 +1,2 @@
+CREATE INDEX `diagnoses_public_history_order` ON `diagnoses` (`created_at`,`id`) WHERE json_extract("diagnoses"."payload", '$.mode') = 'live' AND json_extract("diagnoses"."payload", '$.status') IN ('complete', 'preliminary');--> statement-breakpoint
+CREATE INDEX `diagnoses_public_history_url` ON `diagnoses` (json_extract("payload", '$.url'),`created_at`,`id`) WHERE json_extract("diagnoses"."payload", '$.mode') = 'live' AND json_extract("diagnoses"."payload", '$.status') IN ('complete', 'preliminary');

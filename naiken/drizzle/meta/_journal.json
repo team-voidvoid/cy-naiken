@@ -29,6 +29,13 @@
       "when": 1792302900000,
       "tag": "0003_recover_worker_redirect_failure",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792305349062,
+      "tag": "0004_left_hiroim",
+      "breakpoints": true
     }
   ]
 }

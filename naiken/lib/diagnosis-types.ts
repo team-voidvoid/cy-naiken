@@ -25,6 +25,7 @@ export interface Observation {
   findings: Finding[]; components: ComponentInfo[];
   checkedCategories: string[]; scriptsFetched: number; scriptsSkipped: number;
   technologyCoverage?: TechnologyCoverage;
+  preview?: { title?: string; description?: string; imageUrl?: string };
 }
 export interface Diagnosis {
   id: string; url: string; siteName: string; mode: 'live' | 'demo';
