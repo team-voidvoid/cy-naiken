@@ -17,6 +17,13 @@ export const rateLimits = sqliteTable('rate_limits', {
   expiresAt: integer('expires_at').notNull(),
 });
 
+export const versionExtractions = sqliteTable('version_extractions', {
+  cacheKey: text('cache_key').primaryKey(),
+  status: text('status').notNull(),
+  payload: text('payload'),
+  expiresAt: integer('expires_at').notNull(),
+}, (table) => [index('version_extractions_expiry').on(table.expiresAt)]);
+
 export const researchJobs = sqliteTable('research_jobs', {
   diagnosisId: text('diagnosis_id').primaryKey(),
   payload: text('payload').notNull(),

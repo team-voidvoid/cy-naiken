@@ -26,7 +26,7 @@ function ComponentRow({ component }: { component: ComponentInfo }) {
   const version = component.version ? `v${component.version}` : component.versionStatus === 'multiple' ? '複数の版の記載・版は未確定' : component.versionStatus === 'incomplete' ? '根拠上限・版は未確定' : '版は未確認';
   return <details className="component-row"><summary>
     <span className="component-year">{component.releaseDate?.slice(0, 4) ?? '—'}</span>
-    <span className="component-name">{component.name}<small>{version}</small>{component.package && <small>対応パッケージ {component.package.ecosystem} / {component.package.name}</small>}{component.detectionBasis === 'inferred' && <small>関連技術からの推定</small>}</span>
+    <span className="component-name">{component.name}<small>{version}</small>{component.versionMethod === 'ai' && <small>AIで版表記を抽出・原文照合済み</small>}{component.package && <small>対応パッケージ {component.package.ecosystem} / {component.package.name}</small>}{component.detectionBasis === 'inferred' && <small>関連技術からの推定</small>}</span>
     <span className="component-support">{component.support ?? '保守状況は未確認'}</span><span className="expand-mark">＋</span>
   </summary><div className="component-detail">
     {component.detectionBasis && <p><span className={`confidence confidence-${component.detectionBasis === 'inferred' || component.detectionConfidence !== 'high' ? 'inferred' : 'confirmed'}`}>{component.detectionBasis === 'inferred' ? '関連技術からの推定・直接観測なし' : component.detectionConfidence === 'high' ? '直接の記載を観測' : '特徴からの候補'}</span></p>}

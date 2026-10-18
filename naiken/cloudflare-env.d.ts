@@ -4,6 +4,7 @@ declare namespace Cloudflare {
     OPENAI_API_KEY?: string;
     NAIKEN_AGENT_MODEL?: string;
     NAIKEN_DECISIONS_ENABLED?: string;
+    NAIKEN_VERSION_EXTRACTION_ENABLED?: string;
     DB?: D1Database;
     BUCKET?: R2Bucket;
   }
