@@ -1,0 +1,70 @@
+.progress {
+  --cycle: 7s;
+  margin-top: 16px;
+  padding: 15px 20px 12px;
+  overflow: hidden;
+  border: 1px solid #d9e7ce;
+  border-radius: 8px;
+  background: #f7fbf2;
+  color: #425b32;
+}
+
+.heading { display: flex; align-items: center; gap: 9px; font-size: 12px; line-height: 1.8; }
+.statusDot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: #7aaf4c; box-shadow: 0 0 0 4px #e6f1db; }
+.scene { position: relative; height: 132px; max-width: 660px; margin: 0 auto; isolation: isolate; }
+.road { position: absolute; left: 12px; right: 60px; bottom: 19px; height: 6px; border-radius: 8px; overflow: hidden; background: #e2ebd8; }
+.trail { display: block; width: 0; height: 100%; border-radius: inherit; background: #aad17b; animation: trail var(--cycle) linear infinite; }
+.start { position: absolute; left: 8px; bottom: 18px; width: 8px; height: 8px; border: 2px solid #9dc477; border-radius: 50%; background: #f7fbf2; }
+.house, .houseFront { position: absolute; right: 4px; bottom: 12px; width: 122px; height: 122px; }
+.house { z-index: 1; }
+.houseFront { z-index: 3; overflow: visible; }
+.door { transform-box: fill-box; transform-origin: left center; animation: door var(--cycle) linear infinite; }
+.window { animation: window var(--cycle) linear infinite; }
+.welcome { opacity: 0; animation: welcome var(--cycle) linear infinite; }
+.lane { position: absolute; left: 12px; right: 60px; bottom: 20px; height: 66px; z-index: 2; }
+.traveler { position: absolute; left: 0; bottom: 0; width: 60px; height: 60px; transform-origin: center bottom; animation: enter var(--cycle) linear infinite; }
+.hop { position: relative; z-index: 1; animation: hop .44s ease-in-out infinite; }
+.mascot { display: block; width: 60px; height: 60px; object-fit: contain; }
+.shadow { position: absolute; left: 10px; bottom: -3px; width: 40px; height: 7px; border-radius: 50%; background: #64834425; animation: shadow .44s ease-in-out infinite; }
+.bubble { position: absolute; bottom: 72px; left: 50%; padding: 3px 9px; border: 1px solid #cddfbb; border-radius: 20px; background: #fffefa; color: #6b8456; font-size: 9px; white-space: nowrap; transform: translateX(-50%); opacity: 0; animation: greeting var(--cycle) linear infinite; }
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -4px; width: 6px; height: 6px; border-right: 1px solid #cddfbb; border-bottom: 1px solid #cddfbb; background: #fffefa; transform: translateX(-50%) rotate(45deg); }
+.cloud, .cloudSmall { position: absolute; top: 32px; left: 23%; width: 38px; height: 10px; border-radius: 20px; background: #e8f1df; }
+.cloud::before, .cloudSmall::before { content: ''; position: absolute; bottom: 3px; left: 9px; width: 17px; height: 15px; border-radius: 50%; background: inherit; }
+.cloudSmall { left: 51%; top: 18px; transform: scale(.7); opacity: .7; }
+.detail { margin: 0; color: #758369; font-size: 10px; line-height: 1.9; }
+:global(.progress-panel) > .progress, :global(.agent-progress) > .progress {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+@keyframes enter {
+  0%, 10% { left: 0; opacity: 1; transform: scale(1); }
+  62%, 68% { left: calc(100% - 52px); opacity: 1; transform: scale(1); }
+  80% { left: calc(100% - 30px); opacity: 1; transform: scale(.66); }
+  86%, 100% { left: calc(100% - 30px); opacity: 0; transform: scale(.35); }
+}
+@keyframes hop { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-5px) rotate(3deg); } }
+@keyframes shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.8); opacity: .6; } }
+@keyframes trail { 0%, 5% { width: 0; opacity: 1; } 62%, 90% { width: 100%; opacity: 1; } 100% { width: 100%; opacity: 0; } }
+@keyframes door { 0%, 60%, 95%, 100% { transform: perspective(160px) rotateY(0); } 70%, 87% { transform: perspective(160px) rotateY(-78deg); } }
+@keyframes window { 0%, 74%, 100% { fill: #e6f0dc; } 84%, 94% { fill: #f7d878; } }
+@keyframes welcome { 0%, 82%, 98%, 100% { opacity: 0; } 87%, 93% { opacity: 1; } }
+@keyframes greeting { 0%, 53%, 74%, 100% { opacity: 0; } 58%, 68% { opacity: 1; } }
+
+.progress[data-paused='true'] *, .progress[data-paused='true'] *::after { animation-play-state: paused; }
+@media (max-width: 700px) {
+  .progress { padding: 13px 12px 11px; }
+  .heading { font-size: 11px; }
+  .detail { font-size: 9px; }
+  .cloud { left: 16%; }
+  .cloudSmall { left: 42%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress *, .progress *::after { animation: none !important; }
+  .traveler { left: calc(100% - 88px); opacity: 1; transform: none; }
+  .trail { width: 100%; opacity: .65; }
+  .door { transform: perspective(160px) rotateY(-65deg); }
+}
