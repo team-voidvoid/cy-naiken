@@ -1,7 +1,8 @@
-import type { ComponentInfo, Finding, Observation } from './diagnosis-types.ts';
+import type { Finding, Observation } from './diagnosis-types.ts';
 import { normalizeTarget, validateFetchUrl } from './targets.ts';
 import { assertPublicDns } from './public-dns.ts';
 import { publicFetch } from './public-fetch.ts';
+import { inspectTechnologies, referencedScripts, type ScriptSource } from './technology/scanner.ts';
 
 const LIMITS = { bytes: 10 * 1024 * 1024, requests: 28, scripts: 5, timeout: 19_000 };
 const REQUEST_TIMEOUTS = { html: 7_000, http: 2_000, script: 3_000 };
@@ -18,35 +19,6 @@ function clean(value: string) { return value.replace(/[\u0000-\u001f]/g, ' ').sl
 function challenge(response: Response, text: string): boolean {
   return [401, 403, 407, 429].includes(response.status) || response.headers.get('cf-mitigated') === 'challenge' || /<title[^>]*>\s*(?:just a moment|access denied|attention required|robot check|security check)/i.test(text) || /id=["']challenge-(?:running|form)["']/i.test(text);
 }
-function detectComponents(text: string, url: string, isHtml: boolean): ComponentInfo[] {
-  const result: ComponentInfo[] = [];
-  const add = (name: string, version: string | undefined, value: string) => {
-    if (!result.some((item) => item.name === name && item.version === version)) result.push({ name, version, evidence: [{ label: isHtml ? 'HTML の表記' : '取得した JS の表記', value: clean(value), url }] });
-  };
-  if (isHtml) {
-    for (const match of text.matchAll(/data-styled-version\s*=\s*["'](\d+\.\d+\.\d+)["']/gi)) add('styled-components', match[1], match[0]);
-    if (/__NEXT_DATA__|\/_next\/static\//.test(text)) add('Next.js', undefined, '__NEXT_DATA__ または /_next/static/（版は不明）');
-    if (/data-react-helmet/.test(text)) add('React', undefined, 'data-react-helmet（React 系の手掛かり。版は不明）');
-  } else {
-    const patterns: Array<[string, RegExp]> = [
-      ['jQuery Mobile', /jQuery Mobile\s+(?:v(?:ersion)?\s*)?(\d+\.\d+\.\d+)/gi],
-      ['jQuery Cookie', /jQuery Cookie(?: Plugin)?\s+v?(\d+\.\d+\.\d+)/gi],
-      ['jQuery', /jQuery\s+v?(\d+\.\d+\.\d+)/gi],
-      ['Swiper', /Swiper\s+v?(\d+\.\d+\.\d+)/gi],
-      ['picturefill', /picturefill\s*[-:]?\s*v?(\d+\.\d+\.\d+)/gi],
-      ['Magnific Popup', /Magnific Popup\s*[-:]?\s*v?(\d+\.\d+\.\d+)/gi],
-      ['jquery-match-height', /(?:jquery[.-]match[.-]height|matchHeight)\s*[-:]?\s*v?(\d+\.\d+\.\d+)/gi],
-    ];
-    for (const [name, pattern] of patterns) for (const match of text.matchAll(pattern)) add(name, match[1], match[0]);
-    const file = new URL(url).pathname;
-    for (const [name, pattern] of [['jQuery', /\/jquery[-.](\d+\.\d+\.\d+)(?:\.min)?\.js$/i], ['jQuery Mobile', /jquery\.mobile[-.](\d+\.\d+\.\d+)/i], ['Swiper', /\/swiper\/(\d+\.\d+\.\d+)\//i]] as const) {
-      const match = file.match(pattern);
-      if (match) add(name, match[1], `取得したファイルのパス: ${file}`);
-    }
-  }
-  return result;
-}
-
 export async function observe(input: string, fetcher: Fetcher = publicFetch, timeouts: Partial<typeof REQUEST_TIMEOUTS> = {}, dnsCheck: typeof assertPublicDns = assertPublicDns): Promise<Observation> {
   const target = normalizeTarget(input);
   const observation: Observation = { url: target.url, finalUrl: target.url, status: 0, fetchedAt: new Date().toISOString(), bytes: 0, userAgent: USER_AGENT, outcome: 'error', findings: [], components: [], checkedCategories: [], scriptsFetched: 0, scriptsSkipped: 0 };
@@ -164,7 +136,11 @@ export async function observe(input: string, fetcher: Fetcher = publicFetch, tim
     const forms = [...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/gi)];
     const post = forms.find((match) => attrs(match[0].slice(0, match[0].indexOf('>') + 1)).method?.toLowerCase() === 'post' && !/(?:csrf|xsrf|authenticity|requestverification)token|name=["'][^"']*(?:csrf|xsrf|token)/i.test(match[0]));
     if (post) finding('csrf', 'csrf', '送信フォームのトークンは見当たりません。', 'POST フォームに CSRF 対策トークンらしき表記を確認できません。別の仕組みで対策している可能性があり、対策なしとは断定できません。', 'method=POST; HTML 内のトークンらしき表記なし', 2, 'inferred');
-    observation.components = detectComponents(html, page.url, true);
+    const technologyPage = { url: page.url, body: page.text, headers };
+    const initialTechnologies = inspectTechnologies(technologyPage);
+    observation.components = initialTechnologies.components;
+    observation.technologyCoverage = initialTechnologies.coverage;
+    const fetchedScripts: ScriptSource[] = [];
     try {
       const httpPage = target.url.startsWith('http:') ? page : await request(target.url.replace(/^https:/, 'http:'), 'html');
       if (httpPage.response.ok && !challenge(httpPage.response, httpPage.text)) {
@@ -172,7 +148,7 @@ export async function observe(input: string, fetcher: Fetcher = publicFetch, tim
         if (httpPage.url.startsWith('http:')) finding('http-page', 'https', 'HTTP でもページが応答しています。', 'HTTP での取得が HTTPS に転送されず完了しました。ブラウザの HSTS 動作や入力情報の送信は試していません。', `HTTP ${httpPage.response.status}; 転送先: ${httpPage.url}`, 12);
       }
     } catch { /* HTTPS-only observations remain useful; HTTP is unconfirmed. */ }
-    const scriptSources = [...html.matchAll(/<script\b[^>]*>/gi)].map((match) => attrs(match[0]).src).filter(Boolean);
+    const scriptSources = referencedScripts(page.text, page.url);
     const candidates = [...new Set(scriptSources)].flatMap((source) => {
       try { return [validateFetchUrl(new URL(source, page.url).href, target.url, 'script').href]; } catch { observation.scriptsSkipped++; return []; }
     });
@@ -184,9 +160,12 @@ export async function observe(input: string, fetcher: Fetcher = publicFetch, tim
         const script = await request(url, 'script');
         if (!script.response.ok || challenge(script.response, script.text) || /text\/html/i.test(script.response.headers.get('content-type') ?? '')) { observation.scriptsSkipped++; continue; }
         observation.scriptsFetched++;
-        for (const component of detectComponents(script.text, script.url, false)) if (!observation.components.some((existing) => existing.name === component.name && existing.version === component.version)) observation.components.push(component);
+        fetchedScripts.push({ url: script.url, body: script.text });
       } catch { observation.scriptsSkipped++; }
     }
+    const technologies = inspectTechnologies(technologyPage, fetchedScripts);
+    observation.components = technologies.components;
+    observation.technologyCoverage = technologies.coverage;
     if (controller.signal.aborted) observation.message = '取得時間の上限に達したため、確認できた範囲のみ表示しています。';
     return observation;
   } catch (error) {
