@@ -4,6 +4,17 @@
 
 Webサービスに個人情報を預ける前に、公開情報からその中身を「内見」するプロトタイプです。OpenAI DevDayハッカソン向けに開発しています。
 
+## OpenAI DevDayの技術活用
+
+本プロダクトでは、[OpenAI DevDay 2026で紹介されたGPT-6.1 Sol](https://learn.chatgpt.com/docs/whats-new/devday-2026)と、OpenAI Agents APIを「AI Agentで詳しく内見」機能に使用しています。
+
+| 利用技術 | プロダクトでの用途 | 実装箇所 |
+|---|---|---|
+| [**Agents API**](https://openai.com/ja-JP/index/introducing-the-agents-api/) | 調査セッションを作成し、Web検索と独自ツール `inspect_public_page` を使って、対象サイトや公式資料を追加調査する。進捗と結果を保存し、出典付きレポートを表示する。 | [`naiken/lib/agents-client.ts`](naiken/lib/agents-client.ts)、[`naiken/lib/research-engine.ts`](naiken/lib/research-engine.ts) |
+| [**GPT-6.1 Sol**](https://developers.openai.com/api/docs/models/gpt-6.1-sol) | AI追加調査の既定モデルとして `gpt-6.1-sol` を指定し、調査の進め方の判断、ツールの選択、取得情報の整理とレポート生成を行う。 | [`naiken/app/api/diagnoses/[id]/research/route.ts`](naiken/app/api/diagnoses/%5Bid%5D/research/route.ts) |
+
+通常の点検は独自の取得・照合処理で行い、利用者がAI追加調査を開始したときにAgents APIを呼び出します。
+
 ## できること
 
 - URLを入力し、公開ページのヘッダ・HTTPS・利用部品などを点検する。
