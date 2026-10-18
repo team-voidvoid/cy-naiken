@@ -11,7 +11,7 @@ const SIGNALS: Record<string, string> = {
   'disclosure-server': 'Serverヘッダに製品・版らしき表記があった', 'disclosure-x-powered-by': 'X-Powered-Byヘッダに製品・版らしき表記があった',
 };
 export function safetyUnavailableReason(diagnosis: Diagnosis): string | undefined {
-  if (diagnosis.mode !== 'live') return 'サンプルは過去の部分的な記録のため、安全性を採点しません。';
+  if (diagnosis.mode !== 'live') return '実際の点検結果がないため、安全性を採点しません。';
   if (diagnosis.status !== 'complete') return '通常の点検が完了してから安全性を評価できます。';
   if (!diagnosis.observation || diagnosis.observation.outcome !== 'ok') return '公開ページを取得できなかったため、安全性を採点しません。';
   const checked = new Set(diagnosis.observation.checkedCategories.filter(item => CATEGORIES.includes(item)));
