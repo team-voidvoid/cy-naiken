@@ -23,6 +23,8 @@ export function finalizeObservation(observation: Observation) {
   };
   const findings = observation.findings.map((item) => ({ ...item, evidence: [...item.evidence] }));
   const components = observation.components.map((component): ComponentInfo => {
+    if (component.versionMethod === 'ai') return { ...component, verified: false, releaseDate: undefined,
+      support: 'AIが公開JSの版表記を抽出し、原文と照合しました。部品との対応は推定のため、公開年・古さの採点は保留します。' };
     if (component.detectionBasis === 'inferred') return { ...component, verified: false, releaseDate: undefined, support: '関連技術からの推定です。この部品自体の版・公開年は未確認です。古さの点数には含めません。' };
     const reference = REFERENCES[`${component.name}@${component.version}`];
     if (!reference) return { ...component, verified: false, support: '公開日・保守状況は未照合です。古さの点数には含めません。' };

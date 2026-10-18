@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import InspectionProgress from './InspectionProgress';
 import type { Diagnosis } from '@/lib/diagnosis-types';
 import { SAFETY_LEVELS, type SafetyScoreResponse } from '@/lib/safety-score-types';
 
@@ -72,7 +73,7 @@ export default function SafetyScore({ diagnosis }: { diagnosis: Diagnosis }) {
     {snapshot?.unavailableReason && <p className="safety-score-note">{snapshot.unavailableReason}</p>}
     {snapshot && !snapshot.configured && !assessment && !snapshot.unavailableReason && <p className="safety-score-note">APIキーの設定後に安全性評価を利用できます。</p>}
     {snapshot?.configured && !assessment && !snapshot.unavailableReason && !uncertain && <div className="safety-score-start"><button className="primary-button" onClick={() => void score()} disabled={posting}>{posting ? <><span className="spinner"/> 評価しています</> : '安全性をスコアリング'}</button><p>サイトのオリジンと点検の観測項目をOpenAIへ送信します。URLのパス・クエリやページ本文は送りません。</p></div>}
-    {assessment?.status === 'scoring' && <p role="status"><span className="spinner"/> 安全性を評価しています。この結果URLから再表示できます。</p>}
+    {(posting || assessment?.status === 'scoring') && <InspectionProgress label={posting ? 'AI評価を受け付けています。' : 'AIが安全性を評価しています。'} detail={error ? '最後に取得した評価状況を表示しています。状況を再取得してください。' : '公開情報の観測結果を確認しています。この結果URLから再表示できます。'}/>}
     {assessment?.status === 'completed' && <div className="safety-score-result">
       <div className="safety-score-value"><strong>{assessment.score}<small> / 100</small></strong><div><span>確認範囲 {diagnosis.checkedCount} / 5 項目</span><span>評価確信度 {Math.round(assessment.confidence * 100)}%</span></div></div>
       <meter min={0} max={100} value={assessment.score} aria-label="公開情報に基づく安全性の参考スコア"/>

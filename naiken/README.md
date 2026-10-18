@@ -15,6 +15,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_tricky_namorita.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_left_hiroim.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_stormy_bruce_banner.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0006_version_extractions.sql
 npm run dev
 ```
 
@@ -82,7 +83,7 @@ POST は `Content-Type: application/json` を指定します。HTTP / HTTPS の�
 
 ## プロトタイプの範囲
 
-通常の点検には、Wappalyzerのように公開情報と辞書の規則を照合する技術検出を組み込んでいます。独自の35技術の規則に、従来のjQuery Mobile・jQuery Cookie・Swiper・picturefill・Magnific Popup・jquery-match-height・styled-componentsの7技術を加えています。Wappalyzerのコード・指紋データ・APIは使用していません。検出にAIやAPIキーは不要です。
+通常の点検には、Wappalyzerのように公開情報と辞書の規則を照合する技術検出を組み込んでいます。独自の35技術の規則に、従来のjQuery Mobile・jQuery Cookie・Swiper・picturefill・Magnific Popup・jquery-match-height・styled-componentsの7技術を加えています。Wappalyzerのコード・指紋データ・APIは使用していません。基本の検出にAIやAPIキーは不要です。キー設定時には、下記の低コストな版抽出で補完します。
 
 HTML・応答ヘッダー・meta・属性・Cookie名・インラインCSS/JS・取得できた直接参照JSを照合し、製品ごとに根拠と版を集約します。Google Hosted LibrariesのjQuery、jsDelivr・unpkgの完全な版指定、JS中の版の表記も扱います。`latest`、版範囲、キャッシュ用クエリから版を推測しません。HTMLの最初の有効な`base href`を解決し、コメントやtemplate内の見本のJSは取得しません。
 
@@ -97,6 +98,18 @@ Cloudflare Workers向けに文字列の解析部分を導入しています。�
 調査URLと結果は全利用者に公開されます。入力画面にも公開範囲を表示し、個人用URLを入力しないよう案内します。公開一覧はサンプルと取得中・受付失敗を除き、URLごとの最新結果を表示します。取得拒否やタイムアウトも、確認できなかった結果として表示します。パス・クエリを含む同じ正規化URLごとに履歴を保持し、1週間を過ぎて再調査しても古い結果URLとAIレポートは残ります。一覧や履歴の閲覧だけで新しい点検やAI調査を開始しません。
 
 OGP情報は点検で取得したHTMLから保存します。OGP画像が未保存の既存結果は、一覧の画像を表示する際に対象URLのHTMLからOGPだけを補完します。補完情報はURL別の専用キャッシュに保存し、診断結果・取得日時・1週間の診断キャッシュ・AIレポートは更新しません。画像情報は7日間、画像がない結果は24時間再利用し、取得失敗時は1時間後から再試行します。同じURLの同時取得を抑止し、公開HTMLの先頭1MiBまで・7秒・転送3回に制限します。アクセス拒否された診断結果は補完の対象にしません。画像は保存済みURLだけをサーバ側で取得し、公開ネットワーク・転送先・画像形式・取得時間・サイズを制限します。取得時の画像URLを保存するため、配信元で画像が変更・削除された場合は表示内容が変わることがあります。Webページ全体や画像ファイルそのもののアーカイブではありません。
+
+## 低コストなバージョン抽出
+
+`window.next={version:"16.3.3",...}` のように部品との対応が明確な表記は、取得済みJSからローカルで抽出します。根拠の保存件数が上限でも、この版表記を追加できます。複数の版があれば単一の版には決めません。
+
+版が未確認の部品について、取得済みJSの先頭200,000文字に版表記と部品の特徴がある場合だけ、`OPENAI_API_KEY` で Responses API の `gpt-6-luna` を最大1回呼び出します。全文や追加のWeb検索を使わず、版表記の前後の短い断片を最大6件・入力JSON 8,000文字まで送ります。推論は `none`、出力は600トークン、通信は8秒までです。API料金が発生します。`NAIKEN_VERSION_EXTRACTION_ENABLED=false` で有料の補完を無効にし、ローカル抽出だけを利用できます。ローカルの `.env` と `.dev.vars` のいずれも設定に利用できます。
+
+AIの返答はJSON Schemaで制限し、版・部品ID・断片ID・根拠の引用を元の入力と照合します。原文にない版や引用は採用せず、部品との対応にAIの判断を使ったものは画面で明示します。版の表記は実稼働版の証明ではなく、AI補完の版は公開年・古さの採点に加えません。根拠が乏しい場合、未取得のJSや実行後だけにある版は未確認のままです。
+
+同じ断片・対象部品・モデルの結果はD1で7日間共有し、同時実行も原子的に予約して重複課金を防ぎます。新規呼び出しはアプリ全体で3回／分・UTC日付ごとに50回までです。空の抽出結果もキャッシュし、失敗・結果不明の予約は1時間保持します。自動再試行は行わず、失敗時も通常の点検結果を残します。既存環境には `0006_version_extractions.sql` の適用が必要です。検出方式の更新前の結果URLは保持し、新しい点検ではキャッシュを分けて取得します。
+
+仕様・料金：[Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)、[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)（2026-10-18確認）。
 
 ## Decisions APIによる安全性スコア
 

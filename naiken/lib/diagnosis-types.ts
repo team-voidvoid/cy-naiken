@@ -13,7 +13,12 @@ export interface ComponentInfo {
   support?: string; sourceUrl?: string; verified?: boolean;
   technologyId?: string; package?: { name: string; ecosystem: 'npm' };
   detectionBasis?: 'observed' | 'inferred'; detectionConfidence?: 'high' | 'medium'; confidenceScore?: number;
-  versionStatus?: 'declared' | 'referenced' | 'runtime' | 'multiple' | 'incomplete' | 'unknown'; versions?: string[];
+  versionStatus?: 'declared' | 'referenced' | 'runtime' | 'extracted' | 'multiple' | 'incomplete' | 'unknown'; versions?: string[];
+  versionMethod?: 'ai';
+}
+export interface VersionExtraction {
+  status: 'disabled' | 'not_needed' | 'no_candidates' | 'cached' | 'completed' | 'failed' | 'limited';
+  requests: 0 | 1; model?: string; inputTokens?: number; outputTokens?: number;
 }
 export interface TechnologyCoverage {
   engine: 'wappalyzer-style'; mode: 'static'; browserExecuted: false;
@@ -27,6 +32,7 @@ export interface Observation {
   findings: Finding[]; components: ComponentInfo[];
   checkedCategories: string[]; scriptsFetched: number; scriptsSkipped: number;
   technologyCoverage?: TechnologyCoverage;
+  versionExtraction?: VersionExtraction;
   preview?: { title?: string; description?: string; imageUrl?: string };
 }
 export interface Diagnosis {

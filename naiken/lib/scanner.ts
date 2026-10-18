@@ -4,6 +4,7 @@ import { assertPublicDns } from './public-dns.ts';
 import { publicFetch } from './public-fetch.ts';
 import { inspectTechnologies, referencedScripts, type ScriptSource } from './technology/scanner.ts';
 import { extractSitePreview } from './site-preview.ts';
+import type { VersionEnricher } from './version-extraction.ts';
 
 const LIMITS = { bytes: 10 * 1024 * 1024, requests: 28, scripts: 5, timeout: 19_000 };
 const REQUEST_TIMEOUTS = { html: 7_000, http: 2_000, script: 3_000 };
@@ -20,7 +21,7 @@ function clean(value: string) { return value.replace(/[\u0000-\u001f]/g, ' ').sl
 function challenge(response: Response, text: string): boolean {
   return [401, 403, 407, 429].includes(response.status) || response.headers.get('cf-mitigated') === 'challenge' || /<title[^>]*>\s*(?:just a moment|access denied|attention required|robot check|security check)/i.test(text) || /id=["']challenge-(?:running|form)["']/i.test(text);
 }
-export async function observe(input: string, fetcher: Fetcher = publicFetch, timeouts: Partial<typeof REQUEST_TIMEOUTS> = {}, dnsCheck: typeof assertPublicDns = assertPublicDns): Promise<Observation> {
+export async function observe(input: string, fetcher: Fetcher = publicFetch, timeouts: Partial<typeof REQUEST_TIMEOUTS> = {}, dnsCheck: typeof assertPublicDns = assertPublicDns, enrichVersions?: VersionEnricher): Promise<Observation> {
   const target = normalizeTarget(input);
   const observation: Observation = { url: target.url, finalUrl: target.url, status: 0, fetchedAt: new Date().toISOString(), bytes: 0, userAgent: USER_AGENT, outcome: 'error', findings: [], components: [], checkedCategories: [], scriptsFetched: 0, scriptsSkipped: 0 };
   const controller = new AbortController();
@@ -169,6 +170,14 @@ export async function observe(input: string, fetcher: Fetcher = publicFetch, tim
     observation.components = technologies.components;
     observation.technologyCoverage = technologies.coverage;
     if (controller.signal.aborted) observation.message = '取得時間の上限に達したため、確認できた範囲のみ表示しています。';
+    clearTimeout(timer);
+    if (enrichVersions) {
+      try {
+        const enriched = await enrichVersions(observation.components, fetchedScripts);
+        observation.components = enriched.components;
+        observation.versionExtraction = enriched.versionExtraction;
+      } catch { observation.versionExtraction = { status: 'failed', requests: 0 }; }
+    }
     return observation;
   } catch (error) {
     const timedOut = controller.signal.aborted || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name));
