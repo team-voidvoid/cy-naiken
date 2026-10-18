@@ -63,16 +63,15 @@ export default function SafetyScore({ diagnosis }: { diagnosis: Diagnosis }) {
     } finally { clearTimeout(deadline); if (post.current === controller) { setPosting(false); post.current = null; } }
   }
 
-  if (diagnosis.mode === 'demo') return <section className="safety-score-panel"><h2>URLの安全性スコア</h2><p>サンプルは過去の部分的な記録のため採点しません。実際の公開サイトの内見後に評価できます。</p></section>;
   if (!eligible) return null;
   const assessment = snapshot?.assessment;
   return <section className="safety-score-panel" aria-labelledby="safety-score-heading">
-    <div className="safety-score-heading"><div><p className="eyebrow">公開情報に基づく参考評価</p><h2 id="safety-score-heading">URLの安全性スコア</h2></div><span className="agent-label">Decisions API</span></div>
-    <p>確認できた保護設定と部品情報をAIが評価します。高いほど、確認範囲で観測された懸念が少ないことを表します。</p>
+    <div className="safety-score-heading"><div><p className="eyebrow">AI内見の次のステップ</p><h3 id="safety-score-heading">このサイトの安全スコア</h3></div><span className="agent-label">公開情報に基づく参考評価</span></div>
+    <p>AI内見が完了しました。安全スコアは、通常の点検で確認できた保護設定と部品情報に基づく評価です。高いほど、確認範囲で観測された懸念が少ないことを表します。</p>
     {!snapshot && !error && <p role="status"><span className="spinner"/> 評価の準備状況を確認しています。</p>}
     {snapshot?.unavailableReason && <p className="safety-score-note">{snapshot.unavailableReason}</p>}
     {snapshot && !snapshot.configured && !assessment && !snapshot.unavailableReason && <p className="safety-score-note">APIキーの設定後に安全性評価を利用できます。</p>}
-    {snapshot?.configured && !assessment && !snapshot.unavailableReason && !uncertain && <div className="safety-score-start"><button className="primary-button" onClick={() => void score()} disabled={posting}>{posting ? <><span className="spinner"/> 評価しています</> : '安全性をスコアリング'}</button><p>サイトのオリジンと点検の観測項目をOpenAIへ送信します。URLのパス・クエリやページ本文は送りません。</p></div>}
+    {snapshot?.configured && !assessment && !snapshot.unavailableReason && !uncertain && !posting && <div className="safety-score-start"><button className="primary-button" onClick={() => void score()}>安全スコアを確認する <span aria-hidden="true">↗</span></button><p>サイトのオリジンと点検の観測項目をOpenAIへ送信して評価します。</p></div>}
     {(posting || assessment?.status === 'scoring') && <InspectionProgress label={posting ? 'AI評価を受け付けています。' : 'AIが安全性を評価しています。'} detail={error ? '最後に取得した評価状況を表示しています。状況を再取得してください。' : '公開情報の観測結果を確認しています。この結果URLから再表示できます。'}/>}
     {assessment?.status === 'completed' && <div className="safety-score-result">
       <div className="safety-score-value"><strong>{assessment.score}<small> / 100</small></strong><div><span>確認範囲 {diagnosis.checkedCount} / 5 項目</span><span>評価確信度 {Math.round(assessment.confidence * 100)}%</span></div></div>
