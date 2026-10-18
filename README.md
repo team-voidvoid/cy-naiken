@@ -28,14 +28,17 @@ Webサービスに個人情報を預ける前に、公開情報からその中�
 |---|---|---|
 | [**Agents API**](https://openai.com/ja-JP/index/introducing-the-agents-api/) | 調査セッションを作成し、Web検索と独自ツール `inspect_public_page` を使って、対象サイトや公式資料を追加調査する。進捗と結果を保存し、出典付きレポートを表示する。 | [`naiken/lib/agents-client.ts`](naiken/lib/agents-client.ts)、[`naiken/lib/research-engine.ts`](naiken/lib/research-engine.ts) |
 | [**GPT-6.1 Sol**](https://developers.openai.com/api/docs/models/gpt-6.1-sol) | AI追加調査の既定モデルとして `gpt-6.1-sol` を指定し、調査の進め方の判断、ツールの選択、取得情報の整理とレポート生成を行う。 | [`naiken/app/api/diagnoses/[id]/research/route.ts`](naiken/app/api/diagnoses/%5Bid%5D/research/route.ts) |
+| [**Decisions API / GPT-6 Luna**](https://developers.openai.com/api/docs/guides/decisions) | 点検済みの公開情報を5段階の基準で評価し、URLの安全性の参考スコア・評価確信度・段階別の分布を表示する。 | [`naiken/lib/decisions-client.ts`](naiken/lib/decisions-client.ts)、[`naiken/lib/safety-score.ts`](naiken/lib/safety-score.ts) |
 
 通常の点検は独自の取得・照合処理で行い、利用者がAI追加調査を開始したときにAgents APIを呼び出します。
+安全性スコアも点検完了後の明示操作でDecisions APIを呼び出し、保存済みの結果を再利用します。
 
 ## できること
 
 - URLを入力し、公開ページのヘッダ・HTTPS・利用部品などを点検する。
 - 気になる点を「確定」「推測」「見えない」に分け、根拠とともに確認する。
 - AI Agentが対象ページ・JavaScript・公式資料を追加調査し、出典付きのレポートを作成する。
+- Decisions APIで、観測できた公開情報に基づくURLの安全性を100点換算で評価する。
 - 点検結果とAI調査の進捗を保存し、結果URLから再表示する。
 - 全利用者の調査結果を、OGP画像付きの一覧から検索・閲覧する。
 - 同じURLの結果を1週間再利用し、過去の調査履歴も確認する。
@@ -69,7 +72,7 @@ cd naiken
 npm run dev
 ```
 
-AI調査を使う場合は、`naiken/.dev.vars`に`OPENAI_API_KEY`を設定します。設定例は[`naiken/.env.example`](naiken/.env.example)を参照してください。APIキー未設定でも通常の点検とサンプルは利用できます。
+AI調査・安全性スコアを使う場合は、`naiken/.dev.vars`に`OPENAI_API_KEY`を設定します。設定例は[`naiken/.env.example`](naiken/.env.example)を参照してください。APIキー未設定でも通常の点検とサンプルは利用できます。
 
 公開環境はSitesを利用し、サーバ処理はCloudflare Workers、データ保存はD1で行います。公開版のAPIキーはSitesのサーバ環境変数に別途設定し、フロントエンドのコードには含めません。
 

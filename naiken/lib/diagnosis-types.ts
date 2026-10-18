@@ -1,3 +1,5 @@
+import type { SafetyScore } from './safety-score-types.ts';
+
 export type Confidence = 'confirmed' | 'inferred' | 'unknown';
 export type DiagnosisStatus = 'observing' | 'preliminary' | 'matching' | 'complete' | 'failed';
 export type DemoKind = 'old' | 'unknown' | 'blocked';
@@ -34,5 +36,6 @@ export interface Diagnosis {
   headline: string; summary: string; score: number; checkedCount: number;
   oldestYear?: number; unknowns: string[]; error?: string;
   explanationSource: 'template' | 'agent';
+  safetyScore?: SafetyScore;
 }
 export interface AllowedTarget { url: string; name: string; description: string }
