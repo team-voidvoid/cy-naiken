@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import type { Diagnosis } from './diagnosis-types';
 import { historyQuery, historyResponse, type HistoryOptions, type HistoryRow } from './diagnosis-history';
 import { reserveDiagnosisIn } from './diagnosis-reservation';
+import { cachedSitePreview } from './site-preview-cache';
 
 function database() {
   if (!env.DB) throw new Error('診断結果の保存先が利用できません。');
@@ -17,6 +18,10 @@ export async function listDiagnosisHistory(options: HistoryOptions) {
 export async function findDiagnosis(id: string): Promise<Diagnosis | null> {
   const row = await database().prepare('SELECT payload FROM diagnoses WHERE id = ?').bind(id).first<{payload:string}>();
   return row ? JSON.parse(row.payload) as Diagnosis : null;
+}
+
+export async function findSitePreview(url: string) {
+  return cachedSitePreview(database(), url);
 }
 
 export async function reserveDiagnosis(value: Diagnosis, cacheKey: string): Promise<{value:Diagnosis; owned:boolean}> {

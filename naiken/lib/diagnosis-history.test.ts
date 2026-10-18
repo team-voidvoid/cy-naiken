@@ -90,6 +90,16 @@ test('malformed bounds and cursors return input errors; URLs use scanner normali
   assert.deepEqual(parseHistoryOptions(new URLSearchParams({ url: 'SITE.ORG:443/a?x=1#fragment', q: '  hello  ' })), { limit: 12, url: 'https://site.org/a?x=1', query: 'hello' });
 });
 
+test('legacy successful results request OGP backfill while blocked results keep the fallback', () => {
+  const db = setup();
+  insert(db, 'legacy', 'https://legacy.org/', 100, { observation: { outcome: 'ok' } });
+  insert(db, 'blocked', 'https://blocked.org/', 200, { observation: { outcome: 'blocked' } });
+  const items = list(db, { limit: 12 }).diagnoses;
+  assert.equal(items.find(item => item.id === 'legacy')?.imageUrl, '/api/diagnoses/legacy/image');
+  assert.equal(items.find(item => item.id === 'blocked')?.imageUrl, undefined);
+  db.close();
+});
+
 test('SQLite uses partial indexes for ordering and per-URL newest lookup', () => {
   const db = setup();
   const query = historyQuery({ limit: 12 });

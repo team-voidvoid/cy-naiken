@@ -14,6 +14,7 @@ npm run build
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_charming_network.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_tricky_namorita.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_left_hiroim.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_stormy_bruce_banner.sql
 npm run dev
 ```
 
@@ -25,7 +26,7 @@ npm run typecheck
 npm test
 ```
 
-`npm test`は履歴検索・キャッシュ期限・OGP抽出と画像取得の制限を、外部通信なしで検証します。既存のローカル環境にも、新しい `0004_left_hiroim.sql` を上記の方法で一度適用してください。
+`npm test`は履歴検索・キャッシュ期限・OGP抽出と画像取得の制限を、外部通信なしで検証します。既存のローカル環境にも、`0004_left_hiroim.sql` と `0005_stormy_bruce_banner.sql` を上記の方法で一度適用してください。
 
 ## 試せること
 
@@ -66,7 +67,7 @@ Sites の React / Vinext スターターを使用しています。
 | `GET /api/targets` | 入力例の一覧（診断対象を限定する一覧ではありません） |
 | `GET /api/diagnoses` | 3件のサンプル結果（互換用） |
 | `GET /api/history` | 実際の調査の最新一覧。`q`でサイト名・URL検索、`url`で同じURLの履歴、`limit`・`cursor`でページ送り |
-| `GET /api/diagnoses/{id}/image` | 保存済みOGP画像の取得。画像なし・取得失敗時は代替表示 |
+| `GET /api/diagnoses/{id}/image` | OGP画像の取得。未保存の既存結果はOGPを補完し、画像なし・取得失敗時は代替表示 |
 | `POST /api/diagnoses` | `{"url":"https://www.kfc.co.jp/"}` で実際の点検を開始 |
 | `POST /api/diagnoses` | `{"demo":"old"}` でサンプルの速報（`unknown` / `blocked` も利用可能） |
 | `GET /api/diagnoses/{id}` | 進捗・結果を取得。速報から固定資料との照合を完了 |
@@ -91,7 +92,7 @@ Cloudflare Workers向けに文字列の解析部分を導入しています。�
 
 調査URLと結果は全利用者に公開されます。入力画面にも公開範囲を表示し、個人用URLを入力しないよう案内します。公開一覧はサンプルと取得中・受付失敗を除き、URLごとの最新結果を表示します。取得拒否やタイムアウトも、確認できなかった結果として表示します。パス・クエリを含む同じ正規化URLごとに履歴を保持し、1週間を過ぎて再調査しても古い結果URLとAIレポートは残ります。一覧や履歴の閲覧だけで新しい点検やAI調査を開始しません。
 
-OGP情報は点検で取得したHTMLから保存します。OGP未保存の過去の結果は代替画像で表示し、次の再調査時に画像情報を取得します。画像は保存済みURLだけをサーバ側で取得し、公開ネットワーク・転送先・画像形式・取得時間・サイズを制限します。取得時の画像URLを保存するため、配信元で画像が変更・削除された場合は表示内容が変わることがあります。Webページ全体や画像ファイルそのもののアーカイブではありません。
+OGP情報は点検で取得したHTMLから保存します。OGP画像が未保存の既存結果は、一覧の画像を表示する際に対象URLのHTMLからOGPだけを補完します。補完情報はURL別の専用キャッシュに保存し、診断結果・取得日時・1週間の診断キャッシュ・AIレポートは更新しません。画像情報は7日間、画像がない結果は24時間再利用し、取得失敗時は1時間後から再試行します。同じURLの同時取得を抑止し、公開HTMLの先頭1MiBまで・7秒・転送3回に制限します。アクセス拒否された診断結果は補完の対象にしません。画像は保存済みURLだけをサーバ側で取得し、公開ネットワーク・転送先・画像形式・取得時間・サイズを制限します。取得時の画像URLを保存するため、配信元で画像が変更・削除された場合は表示内容が変わることがあります。Webページ全体や画像ファイルそのもののアーカイブではありません。
 
 ## AI調査の設定と流れ
 

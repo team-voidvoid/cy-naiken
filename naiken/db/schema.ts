@@ -23,3 +23,11 @@ export const researchJobs = sqliteTable('research_jobs', {
   leaseToken: text('lease_token'),
   leaseUntil: integer('lease_until').notNull().default(0),
 });
+
+export const sitePreviews = sqliteTable('site_previews', {
+  url: text('url').primaryKey(),
+  payload: text('payload').notNull(),
+  nextFetchAt: integer('next_fetch_at').notNull(),
+  leaseToken: text('lease_token'),
+  leaseUntil: integer('lease_until').notNull().default(0),
+});

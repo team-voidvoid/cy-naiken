@@ -78,7 +78,6 @@ export function historyQuery(options: HistoryOptions): { sql: string; bindings: 
       json_extract(d.payload, '$.checkedCount') AS checkedCount,
       json_extract(d.payload, '$.score') AS score,
       json_extract(d.payload, '$.observation.outcome') AS outcome,
-      json_extract(d.payload, '$.observation.preview.imageUrl') AS previewImage,
       json_extract(r.payload, '$.status') AS researchStatus
       FROM diagnoses d LEFT JOIN research_jobs r ON r.diagnosis_id = d.id
       WHERE ${conditions.join('\nAND ')}
@@ -91,7 +90,7 @@ export interface HistoryRow {
   id: string; sortCreatedAt: number; url: string; siteName: string;
   status: DiagnosisSummary['status']; createdAt: string; updatedAt: string;
   headline: string; summary: string; checkedCount: number; score: number;
-  outcome?: string | null; previewImage?: string | null; researchStatus?: string | null;
+  outcome?: string | null; researchStatus?: string | null;
 }
 
 export function historyResponse(rows: HistoryRow[], limit: number): HistoryResponse {
@@ -101,7 +100,7 @@ export function historyResponse(rows: HistoryRow[], limit: number): HistoryRespo
     createdAt: row.createdAt, updatedAt: row.updatedAt, headline: row.headline,
     summary: row.summary, checkedCount: row.checkedCount, score: row.score,
     ...(['ok', 'blocked', 'timeout', 'error'].includes(row.outcome ?? '') ? { outcome: row.outcome as DiagnosisSummary['outcome'] } : {}),
-    ...(typeof row.previewImage === 'string' && row.previewImage ? { imageUrl: `/api/diagnoses/${encodeURIComponent(row.id)}/image` } : {}),
+    ...(row.outcome === 'ok' ? { imageUrl: `/api/diagnoses/${encodeURIComponent(row.id)}/image` } : {}),
     ...(['starting', 'running', 'completed', 'failed'].includes(row.researchStatus ?? '') ? { researchStatus: row.researchStatus as DiagnosisSummary['researchStatus'] } : {}),
   }));
   const last = visible.at(-1);

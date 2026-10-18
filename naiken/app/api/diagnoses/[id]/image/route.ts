@@ -1,4 +1,4 @@
-import { findDiagnosis } from '@/lib/diagnosis-store';
+import { findDiagnosis, findSitePreview } from '@/lib/diagnosis-store';
 import { fetchSitePreviewImage, unavailablePreviewImage } from '@/lib/site-preview';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -6,7 +6,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!/^[0-9a-f-]{36}$/.test(id)) return unavailablePreviewImage();
   try {
     const diagnosis = await findDiagnosis(id);
-    const imageUrl = diagnosis?.mode === 'live' && diagnosis.observation?.outcome === 'ok' ? diagnosis.observation.preview?.imageUrl : undefined;
+    if (diagnosis?.mode !== 'live' || diagnosis.observation?.outcome !== 'ok') return unavailablePreviewImage();
+    const imageUrl = diagnosis.observation.preview?.imageUrl ?? (await findSitePreview(diagnosis.url))?.imageUrl;
     return imageUrl ? await fetchSitePreviewImage(imageUrl) : unavailablePreviewImage();
   } catch {
     return unavailablePreviewImage();
