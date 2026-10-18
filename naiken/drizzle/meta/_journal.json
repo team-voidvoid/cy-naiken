@@ -43,6 +43,13 @@
       "when": 1792307370146,
       "tag": "0005_stormy_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792307975207,
+      "tag": "0006_version_extractions",
+      "breakpoints": true
     }
   ]
 }

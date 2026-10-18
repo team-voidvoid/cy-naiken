@@ -3,6 +3,9 @@ import { normalizeTarget } from '@/lib/targets';
 import { observe } from '@/lib/scanner';
 import { createDemo, demoList } from '@/lib/demo';
 import { allowRequest, fingerprint, reserveDiagnosis, saveDiagnosis } from '@/lib/diagnosis-store';
+import { env } from 'cloudflare:workers';
+import { extractComponentVersions } from '@/lib/version-extraction';
+import { createVersionCache } from '@/lib/version-extraction-store';
 
 export async function GET() {
   return Response.json({diagnoses:demoList()}, {headers:{'Cache-Control':'no-store'}});
@@ -39,7 +42,10 @@ export async function POST(request: Request) {
       summary:'対象ページと直接参照する公開ファイルを読み取っています。',score:0,checkedCount:0,
       unknowns:['サーバ内部の安全性や、個人情報の管理状況はこの点検では分かりません。'],explanationSource:'template',
     };
-    const reservation = await reserveDiagnosis(value, target.url);
+    // Keep earlier result URLs intact while refreshing observations made before
+    // the version resolver was introduced. Subsequent scans still share a cache.
+    const versionMode = env.OPENAI_API_KEY && env.NAIKEN_VERSION_EXTRACTION_ENABLED !== 'false' ? 'ai' : 'local';
+    const reservation = await reserveDiagnosis(value, `versions-v1:${versionMode}:${target.url}`);
     if (!reservation.owned) return Response.json(reservation.value, {headers:{'Cache-Control':'no-store','X-Naiken-Cache':'hit'}});
     if (!(await allowRequest('global', 20, 60_000)) || !(await allowRequest(`host:${new URL(target.url).hostname}`, 6, 60_000))) {
       const failure:Diagnosis = {...value,status:'failed',error:'受付が混み合っています。時間をおいてお試しください。'};
@@ -47,7 +53,13 @@ export async function POST(request: Request) {
       return Response.json(failure, {status:429,headers:{'Retry-After':'60'}});
     }
     try {
-      const observation = await observe(target.url);
+      const observation = await observe(target.url, undefined, undefined, undefined, (components, scripts) =>
+        extractComponentVersions(components, scripts, {
+          apiKey: env.OPENAI_API_KEY, enabled: env.NAIKEN_VERSION_EXTRACTION_ENABLED !== 'false',
+          cache: env.DB ? createVersionCache(env.DB) : undefined,
+          allowCall: async () => (await allowRequest(`versions:day:${new Date().toISOString().slice(0, 10)}`, 50, 86_400_000))
+            && (await allowRequest('versions:minute', 3, 60_000)),
+        }));
       const preliminary: Diagnosis = {...value, siteName:target.name === new URL(target.url).hostname ? observation.preview?.title || target.name : target.name, status:'preliminary',updatedAt:new Date().toISOString(),observation,
         findings:observation.findings,components:observation.components,checkedCount:observation.checkedCategories.length,
         headline:'公開情報の取得が終わりました。',summary:'確認済みの部品資料と照合します。'};
