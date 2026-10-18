@@ -2,7 +2,6 @@ import type { SafetyScore } from './safety-score-types.ts';
 
 export type Confidence = 'confirmed' | 'inferred' | 'unknown';
 export type DiagnosisStatus = 'observing' | 'preliminary' | 'matching' | 'complete' | 'failed';
-export type DemoKind = 'old' | 'unknown' | 'blocked';
 export interface Evidence { label: string; value: string; url?: string; ruleId?: string }
 export interface Finding {
   id: string; category: 'headers' | 'cookies' | 'https' | 'components' | 'csrf';
@@ -36,8 +35,8 @@ export interface Observation {
   preview?: { title?: string; description?: string; imageUrl?: string };
 }
 export interface Diagnosis {
-  id: string; url: string; siteName: string; mode: 'live' | 'demo';
-  demoKind?: DemoKind; status: DiagnosisStatus; createdAt: string; updatedAt: string;
+  id: string; url: string; siteName: string; mode: 'live';
+  status: DiagnosisStatus; createdAt: string; updatedAt: string;
   observation?: Observation; findings: Finding[]; components: ComponentInfo[];
   headline: string; summary: string; score: number; checkedCount: number;
   oldestYear?: number; unknowns: string[]; error?: string;

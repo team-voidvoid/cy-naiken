@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inspectTechnologies, referencedScripts } from '../lib/technology/scanner.ts';
 import { finalizeObservation } from '../lib/rules.ts';
-import { createDemo } from '../lib/demo.ts';
 import { observe } from '../lib/scanner.ts';
 
 const url = 'https://public.example.com/shop/';
@@ -104,12 +103,6 @@ test('version ranges, lookalike CDN hosts and unexecuted globals cannot produce 
     { url: 'https://public.example.com/app.js', body: 'window.Vue={version:"3.5.13"};window.React={version:"19.2.0"};' },
   ]);
   assert.deepEqual(result.components, []);
-});
-
-test('legacy sample records still finalize with their recorded ages', () => {
-  assert.equal(createDemo('old', 'demo-old').oldestYear, 2014);
-  assert.equal(createDemo('unknown', 'demo-unknown').oldestYear, 2023);
-  assert.equal(createDemo('blocked', 'demo-blocked').score, 0);
 });
 
 const htmlResponse = (body, headers = {}) => new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8', ...headers } });
