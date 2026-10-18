@@ -21,7 +21,11 @@ async function handle(request: Request, context: Context, start: boolean) {
     const diagnosis = await findDiagnosis(id);
     if (!diagnosis) return reply({error:'点検結果が見つかりません。',started:false},404);
     const settings = config();
-    if (!settings) return reply({configured:false,research:null,...(start ? {error:'APIキーの設定後にAI調査を利用できます。',started:false} : {})},start ? 503 : 200);
+    if (!settings) {
+      // Reading a saved final report does not resume Agent work or require a key.
+      const saved = !start && diagnosis.mode === 'live' && diagnosis.status === 'complete' ? await readResearch(id) : null;
+      return reply({configured:false,research:saved?.status === 'completed' ? researchView(saved) : null,...(start ? {error:'APIキーの設定後にAI調査を利用できます。',started:false} : {})},start ? 503 : 200);
+    }
     if (diagnosis.mode !== 'live' || diagnosis.status !== 'complete') return reply({error:'通常の点検が完了してからAI調査を開始してください。',started:false},409);
     let job = await readResearch(id);
     const retry = job?.status === 'failed' && job.retryable === true && !job.sessionId;

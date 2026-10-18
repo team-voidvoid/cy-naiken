@@ -24,7 +24,7 @@ Webサービスに個人情報を預ける前に、公開情報からその中�
 
 本プロダクトでは、[OpenAI DevDay 2026で紹介されたGPT-6.1 Sol](https://learn.chatgpt.com/docs/whats-new/devday-2026)と、OpenAI Agents APIを「AI Agentで詳しく内見」機能に使用しています。
 
-また、DevDay 2026の関連リリースとして、**Decisions API（GPT-6 Luna）を「URLの安全性スコア」に使用**しています。点検済みの公開情報を5段階で評価し、100点換算の参考スコアを表示します。[公式更新履歴](https://developers.openai.com/api/docs/changelog)では、2026年10月6日の公開ベータ開始が案内されています。
+また、DevDay 2026の関連リリースとして、**Decisions API（GPT-6 Luna）を「URLの安全性スコア」に使用**しています。「AIの内見カウンター」でAI内見とレポートの保存が完了してから、点検済みの公開情報を5段階で評価し、100点換算の参考スコアを確認できます。[公式更新履歴](https://developers.openai.com/api/docs/changelog)では、2026年10月6日の公開ベータ開始が案内されています。
 
 | 利用技術 | プロダクトでの用途 | 実装箇所 |
 |---|---|---|
