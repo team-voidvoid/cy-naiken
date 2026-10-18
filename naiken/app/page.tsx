@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import AgentResearch from './components/AgentResearch';
 import ArchiveHistory from './components/ArchiveHistory';
+import SafetyScore from './components/SafetyScore';
 import DotMascot from './components/DotMascot';
+import HistoryBrowser, { SiteHistory } from './components/HistoryBrowser';
 import type { AllowedTarget, ComponentInfo, DemoKind, Diagnosis, Evidence } from '@/lib/diagnosis-types';
 
 const demos: { kind: DemoKind; no: string; title: string; text: string; mark: string; site: string; facts: [string, string][] }[] = [
@@ -43,6 +45,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [cacheNotice, setCacheNotice] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const requestRef = useRef(0);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -51,9 +54,9 @@ export default function Home() {
     fetch('/api/targets').then(readJson<{ targets: AllowedTarget[] }>).then(data => setTargets(data.targets)).catch(() => {});
     function restore() {
       const id = new URLSearchParams(window.location.hash.slice(1)).get('diagnosis');
-      if (!id) return;
+      if (!id) { requestRef.current++; setDiagnosis(null); setLoadingSaved(false); setBusy(false); setCacheNotice(false); setError(''); return; }
       const request = ++requestRef.current;
-      setLoadingSaved(true); setError('');
+      setDiagnosis(null); setCopied(false); setLoadingSaved(true); setBusy(false); setCacheNotice(false); setError('');
       fetch(`/api/diagnoses/${encodeURIComponent(id)}`).then(readJson<Diagnosis>).then(data => { if (request === requestRef.current) setDiagnosis(data); }).catch(err => { if (request === requestRef.current) setError(err.message); }).finally(() => { if (request === requestRef.current) setLoadingSaved(false); });
     }
     restore();
@@ -65,45 +68,49 @@ export default function Home() {
     if (!diagnosis || ['complete', 'failed'].includes(diagnosis.status)) return;
     let stopped = false;
     const id = diagnosis.id;
+    const request = requestRef.current;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
         const value = await readJson<Diagnosis>(await fetch(`/api/diagnoses/${encodeURIComponent(id)}`, { signal: controller.signal }));
-        if (!stopped) { setDiagnosis(value); setError(''); }
-      } catch (err) { if (!stopped) setError(err instanceof Error ? err.message : '進捗を取得できませんでした。'); }
+        if (!stopped && request === requestRef.current) { setDiagnosis(value); setError(''); }
+      } catch (err) { if (!stopped && request === requestRef.current) setError(err instanceof Error ? err.message : '進捗を取得できませんでした。'); }
     }, 1000);
     return () => { stopped = true; controller.abort(); window.clearTimeout(timer); };
   }, [diagnosis]);
 
-  async function start(demo?: DemoKind) {
+  async function start(demo?: DemoKind, targetUrl = url.trim()) {
     if (busy) return;
-    if (!demo && !url.trim()) { setError('内見したいサイトの URL を入力してください。'); return; }
+    if (!demo && !targetUrl) { setError('内見したいサイトの URL を入力してください。'); return; }
     const request = ++requestRef.current;
-    setBusy(true); setError(''); setCopied(false);
+    setBusy(true); setError(''); setCopied(false); setCacheNotice(false);
     try {
-      const value = await readJson<Diagnosis>(await fetch('/api/diagnoses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(demo ? { demo } : { url: url.trim() }) }));
+      const response = await fetch('/api/diagnoses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(demo ? { demo } : { url: targetUrl }) });
+      const value = await readJson<Diagnosis>(response);
       if (request !== requestRef.current) return;
       setDiagnosis(value);
+      setCacheNotice(response.headers.get('X-Naiken-Cache') === 'hit');
       window.history.replaceState(null, '', `#diagnosis=${encodeURIComponent(value.id)}`);
       window.setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     } catch (err) { if (request === requestRef.current) setError(err instanceof Error ? err.message : '診断を開始できませんでした。'); }
     finally { if (request === requestRef.current) setBusy(false); }
   }
-  function reset() { requestRef.current++; setDiagnosis(null); setBusy(false); setLoadingSaved(false); setError(''); window.history.replaceState(null, '', window.location.pathname + window.location.search); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  function reset() { requestRef.current++; setDiagnosis(null); setBusy(false); setLoadingSaved(false); setCacheNotice(false); setError(''); window.history.replaceState(null, '', window.location.pathname + window.location.search); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function navigateTo(section: string) { if (diagnosis || loadingSaved) reset(); window.setTimeout(() => document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); }
   async function copyLink() { try { await navigator.clipboard.writeText(window.location.href); setCopied(true); window.setTimeout(() => setCopied(false), 2500); } catch { setError('リンクをコピーできませんでした。ブラウザのアドレス欄からコピーしてください。'); } }
   const pending = !!diagnosis && !['complete', 'failed'].includes(diagnosis.status);
 
   return <div className="site-shell">
-    <a className="skip-link" href="#main">本文へ移動</a>
-    <header className="site-header"><div className="header-topline wrap">Web サービスの中身を確認する、内見ポータル</div><div className="header-inner wrap"><button className="brand" onClick={reset} aria-label="ナイケン ホーム"><BrandMark/><span>ナイケン</span></button><p className="brand-description">個人情報も、お引っ越しの前に。<br/><strong>預ける前に、内見を。</strong></p><span className="prototype-pill">プロトタイプ公開中</span></div><nav className="portal-nav" aria-label="メインナビゲーション"><div className="wrap"><button onClick={() => navigateTo('search')}>URL から内見する <span aria-hidden="true">⌄</span></button><button onClick={() => navigateTo('samples')}>サンプルを見る <span aria-hidden="true">⌄</span></button><button onClick={() => navigateTo('about')}>ナイケンの使い方 <span aria-hidden="true">⌄</span></button></div></nav></header>
-    <main id="main">
+    <a className="skip-link" href="#main" onClick={event => { event.preventDefault(); const main = document.getElementById('main'); main?.focus(); main?.scrollIntoView({ block: 'start' }); }}>本文へ移動</a>
+    <header className="site-header"><div className="header-topline wrap">Web サービスの中身を確認する、内見ポータル</div><div className="header-inner wrap"><button className="brand" onClick={reset} aria-label="ナイケン ホーム"><BrandMark/><span>ナイケン</span></button><p className="brand-description">個人情報も、お引っ越しの前に。<br/><strong>預ける前に、内見を。</strong></p><span className="prototype-pill">プロトタイプ公開中</span></div><nav className="portal-nav" aria-label="メインナビゲーション"><div className="wrap"><button onClick={() => navigateTo('search')}>URL から内見する <span aria-hidden="true">⌄</span></button><button onClick={() => navigateTo('history')}>みんなの調査を見る <span aria-hidden="true">⌄</span></button><button onClick={() => navigateTo('samples')}>サンプルを見る <span aria-hidden="true">⌄</span></button><button onClick={() => navigateTo('about')}>ナイケンの使い方 <span aria-hidden="true">⌄</span></button></div></nav></header>
+    <main id="main" tabIndex={-1}>
       {loadingSaved && <div className="restore-loading" role="status"><span className="spinner"/> 内見レポートを読み込んでいます…</div>}
       {!diagnosis && !loadingSaved && <>
         <div className="portal-hero-area"><section className="hero wrap"><div className="hero-copy"><p className="hero-pretitle">住所も、免許証も、大切な情報だから。</p><h1>預ける前に、<span>内見を。</span></h1><p className="hero-subtitle">その Web サービス、<strong>中身</strong>まで見て選びませんか？</p><div className="hero-benefits"><span>✓ 部品の公開年</span><span>✓ 公開設定</span><span>✓ 指摘の根拠</span></div></div><div className="hero-mascot-area"><p className="mascot-bubble">外から見えるところを<br/><strong>いっしょにチェック！</strong></p><DotMascot className="hero-mascot"/><span className="mascot-ground"/></div></section>
-        <section id="search" className="start-section wrap" aria-labelledby="start-title"><div className="search-tab"><span aria-hidden="true">⌂</span> URL から内見する</div><div className="input-panel"><div className="input-panel-heading"><h2 id="start-title">気になるサイトの URL を入力</h2><span>公開ページだけを点検</span></div><form onSubmit={event => { event.preventDefault(); void start(); }}><label className="sr-only" htmlFor="site-url">内見したいサイトの URL</label><div className="url-input-row"><span className="url-icon" aria-hidden="true">⌕</span><input id="site-url" type="text" inputMode="url" autoCapitalize="off" spellCheck={false} placeholder="https://example.com" value={url} onChange={event => setUrl(event.target.value)} aria-describedby="url-help" disabled={busy}/><button className="primary-button" type="submit" disabled={busy}>{busy ? '受け付けています' : 'このサイトを内見する'}{busy ? <span className="spinner"/> : <Arrow/>}</button></div></form>{busy && <p className="input-note" role="status"><span className="spinner"/> 受付中・取得中。公開情報を確認しています。最大20秒ほどお待ちください。</p>}<p id="url-help" className="input-note">公開サイトの URL が対象です。ログインが必要なページや、取得を拒否するサイトは確認できません。</p>{targets.length > 0 && <details className="target-picker"><summary><span>URL の入力例を見る</span><span aria-hidden="true">＋</span></summary><div className="target-list">{targets.map(target => <button key={target.url} onClick={() => { setUrl(target.url); document.getElementById('site-url')?.focus(); }}><strong>{target.name}</strong><span>{target.url}</span><Arrow/></button>)}</div></details>}</div></section></div>
+        <section id="search" className="start-section wrap" aria-labelledby="start-title"><div className="search-tab"><span aria-hidden="true">⌂</span> URL から内見する</div><div className="input-panel"><div className="input-panel-heading"><h2 id="start-title">気になるサイトの URL を入力</h2><span>公開ページだけを点検</span></div><form onSubmit={event => { event.preventDefault(); void start(); }}><label className="sr-only" htmlFor="site-url">内見したいサイトの URL</label><div className="url-input-row"><span className="url-icon" aria-hidden="true">⌕</span><input id="site-url" type="text" inputMode="url" autoCapitalize="off" spellCheck={false} placeholder="https://example.com" value={url} onChange={event => setUrl(event.target.value)} aria-describedby="url-help" disabled={busy}/><button className="primary-button" type="submit" disabled={busy}>{busy ? '受け付けています' : 'このサイトを内見する'}{busy ? <span className="spinner"/> : <Arrow/>}</button></div></form>{busy && <p className="input-note" role="status"><span className="spinner"/> 受付中・取得中。公開情報を確認しています。最大20秒ほどお待ちください。</p>}<p id="url-help" className="input-note">調査したURLと結果は、みんなの調査一覧に公開されます。個人用のURLは入力しないでください。ログインが必要なページは確認できません。</p>{targets.length > 0 && <details className="target-picker"><summary><span>URL の入力例を見る</span><span aria-hidden="true">＋</span></summary><div className="target-list">{targets.map(target => <button key={target.url} onClick={() => { setUrl(target.url); document.getElementById('site-url')?.focus(); }}><strong>{target.name}</strong><span>{target.url}</span><Arrow/></button>)}</div></details>}</div></section></div>
         {error && <div className="wrap"><p className="error-message" role="alert">{error}</p></div>}
         <div className="portal-news wrap"><span>ナイケンからのお知らせ</span><p>公開情報を点検し、「確定・推測・見えない」を分けてお伝えします。</p><button onClick={() => navigateTo('about')}>詳しく見る <Arrow/></button></div>
+        <HistoryBrowser/>
         <section id="samples" className="samples-section wrap" aria-labelledby="samples-title"><div className="section-kicker"><h2 id="samples-title"><span aria-hidden="true">⌂</span> サンプルから内見してみよう</h2><p>3つの事前調査レポート</p></div><p className="section-lead">サイトの「設備」や「築年数」を見るように、部品や公開設定を確かめてみましょう。</p><div className="demo-grid">{demos.map(demo => <article key={demo.kind} className={`demo-card demo-${demo.kind}`}><div className="demo-visual"><span className="demo-type">内見サンプル {demo.no}</span><PropertyDrawing kind={demo.kind}/><span className="demo-mark">{demo.mark}</span></div><div className="demo-body"><p className="demo-site">{demo.site}</p><h3>{demo.title}</h3><dl className="demo-facts">{demo.facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p className="demo-description">{demo.text}</p><button className="demo-action" disabled={busy} onClick={() => void start(demo.kind)}>この内見レポートを見る <Arrow/></button></div></article>)}</div><p className="demo-disclaimer">※ 事前調査をもとにしたデモです。現在のサイトの診断結果ではありません。公開年は部品の年であり、サイト全体の年齢ではありません。</p></section>
         <section className="inspection-guide wrap"><div className="section-kicker"><h2><span aria-hidden="true">✓</span> ナイケンで確認できること</h2></div><div className="inspection-grid"><article><span className="guide-icon" aria-hidden="true">⌂</span><div><h3>「築年数」のように、部品の年代を</h3><p>使われているライブラリの版から、公開年や公式の保守状況を確認します。</p><span className="guide-tag">部品の古さ ≠ サイト全体の年齢</span></div></article><article><span className="guide-icon" aria-hidden="true">▦</span><div><h3>「設備」のように、公開設定を</h3><p>HTTPS、ヘッダ、Cookie 属性など、外から確認できる設定を点検します。</p><span className="guide-tag">設定の観測 ≠ 安全性の保証</span></div></article><article><span className="guide-icon" aria-hidden="true">⌕</span><div><h3>気になるところは、根拠まで</h3><p>気になる点は最大3つ。開くと取得した値や出典を確認できます。</p><span className="guide-tag">分からないところは「見えない」</span></div></article></div></section>
         <section id="about" className="about-section"><div className="wrap"><div className="section-kicker"><h2><span aria-hidden="true">?</span> はじめての方へ · 内見はかんたん3ステップ</h2></div><div className="principles"><article><span className="principle-number">1</span><div><h3>URL を入力する</h3><p>気になる Web サービスの公開ページを指定します。個人情報の入力は不要です。</p></div></article><article><span className="principle-number">2</span><div><h3>中身の点検結果を見る</h3><p>部品の情報や公開設定を確認。取得できなかったところも、その理由をお伝えします。</p></div></article><article><span className="principle-number">3</span><div><h3>根拠を見て、判断する</h3><p>指摘の根拠を開いて確認。AI Agent による追加の調査も、別枠で依頼できます。</p></div></article></div><div className="guide-bottom"><DotMascot className="guide-mascot"/><p><strong>分からないことも、きちんとお伝えします。</strong><br/>ログイン後の機能やサーバ内部は見えません。安全性を保証する診断ではありません。</p><button className="primary-button" onClick={() => navigateTo('search')}>さっそく内見する <Arrow/></button></div></div></section>
@@ -112,9 +119,12 @@ export default function Home() {
         <div className="report-toolbar"><button className="text-button" onClick={reset}>← 別のサイトを内見する</button><button className="text-button copy-button" onClick={() => void copyLink()}>{copied ? '✓ コピーしました' : 'リンクをコピー'} <span aria-hidden="true">⧉</span></button></div>
         {error && <div className="error-message" role="alert">{error} {pending && <button onClick={() => setDiagnosis({ ...diagnosis })}>進捗を再取得</button>}</div>}
         {diagnosis.mode === 'demo' && <div className="demo-banner"><span className="tag">サンプル</span> 事前調査をもとにしたデモです。現在のサイトの診断結果ではありません。</div>}
+        {cacheNotice && <p className="cache-notice" role="status">保存済みの結果を再利用しています。通常の結果は1週間再利用されます。一時的な通信失敗は30秒後から再試行できます。取得日時をご確認ください。</p>}
         <section className="report-cover"><div className="report-meta"><span className="eyebrow">サイトの内見レポート</span><span className="report-status">{pending && <span className="spinner"/>}{statusLabels[diagnosis.status]}</span></div><div className="report-site"><span className="site-icon"><BrandMark/></span><div><p>{diagnosis.siteName}</p><a href={diagnosis.url} target="_blank" rel="noopener noreferrer">{diagnosis.url} <Arrow diagonal/></a></div></div><h1>{diagnosis.headline || '外から見える情報を、確かめています。'}</h1><p className="report-summary">{diagnosis.summary || '公開ページ、ヘッダ、部品の表記を確認しています。'}</p><div className="cover-bottom"><p>{diagnosis.mode === 'demo' ? '事前観測' : '取得日時'}：{formatDate(diagnosis.observation?.fetchedAt)}</p><span className="report-stamp">外から見える<br/>範囲の点検</span></div></section>
         {pending && <section className="progress-panel" aria-live="polite"><div className="progress-line"><span className="spinner"/><strong>{statusLabels[diagnosis.status]}</strong><span>このページを開き直しても、続きから確認できます</span></div><div className="progress-stages"><span className="active">01 公開情報の取得</span><span className={diagnosis.observation ? 'active' : ''}>02 速報・部品の照合</span><span>03 レポート完成</span></div></section>}
         {diagnosis.error && <p className="error-message" role="alert">{diagnosis.error}</p>}
+        {diagnosis.mode === 'live' && <SiteHistory key={diagnosis.id} diagnosis={diagnosis} onRescan={() => void start(undefined, diagnosis.url)} busy={busy}/>}
+        <SafetyScore key={`safety-${diagnosis.id}`} diagnosis={diagnosis}/>
         <AgentResearch key={diagnosis.id} diagnosis={diagnosis}/><ArchiveHistory key={`history-${diagnosis.id}`} diagnosis={diagnosis}/><div className="report-columns"><div className="report-main"><section className="findings-section"><div className="report-section-heading"><span className="section-number">01</span><h2>このサイトの気になるところ</h2><span>最大3件</span></div><p className="section-caption">観測できた事実から、気になる点を選びました。</p>{diagnosis.findings.length > 0 ? diagnosis.findings.slice(0, 3).map((finding, index) => <details className="finding-card" key={finding.id}><summary><span className="finding-index">{String(index + 1).padStart(2, '0')}</span><div><span className={`confidence confidence-${finding.confidence}`}>{confidenceLabels[finding.confidence]}</span><h3>{finding.title}</h3><p>{finding.explanation}</p><span className="evidence-toggle">根拠を確かめる <span className="expand-mark">＋</span></span></div></summary><div className="finding-detail"><EvidenceList evidence={finding.evidence}/><p className="evidence-note">「確定」は観測事実の確定です。安全性や被害を確定するものではありません。</p></div></details>) : <div className="empty-panel"><span aria-hidden="true">{pending ? '…' : '—'}</span><h3>{pending ? '確認できた点から、順にお伝えします。' : diagnosis.observation?.outcome === 'blocked' ? '取得を拒否されたため、判定していません。' : '現在の観測に基づく指摘はありません。'}</h3><p>指摘がないことは、サイトの安全性を保証しません。</p></div>}</section>
         <section className="components-section"><div className="report-section-heading"><span className="section-number">02</span><h2>部品情報・公開年</h2></div><p className="section-caption">部品の公開年です。サイト全体の年齢ではありません。</p>{diagnosis.observation?.technologyCoverage && <p className="section-caption">公開HTML・ヘッダー・取得したJSを{diagnosis.observation.technologyCoverage.supportedTechnologies}種類の技術の規則と照合しました。ブラウザでの実行後にだけ見える情報は未確認です。</p>}<div className="age-callout"><span>検出した最古の部品</span><strong>{pending && diagnosis.components.some(c => c.version) && !diagnosis.oldestYear ? '照合中' : diagnosis.oldestYear ? <>{diagnosis.oldestYear}<small>年公開</small></> : '未確認'}</strong><p>版が分からない部品の古さは、推測しません。</p></div>{diagnosis.components.length > 0 ? <div className="component-table">{diagnosis.components.map((component, index) => <ComponentRow component={component} key={`${component.name}-${index}`}/>)}</div> : <p className="empty-description">{pending ? '部品の表記を確認しています。' : '公開情報から部品と版を確認できませんでした。'}</p>}</section>
         <section className="unknown-section"><div className="report-section-heading"><span className="section-number">03</span><h2>この点検では、見えないこと。</h2></div><p className="section-caption">外から見えない項目は、採点に含めていません。</p><ul>{(diagnosis.unknowns.length ? diagnosis.unknowns : ['サーバ内部の安全性（SQL インジェクションなど）', 'ログイン後の処理や個人情報の保管方法']).map((item, index) => <li key={index}><span aria-hidden="true">—</span>{item}</li>)}</ul></section></div>

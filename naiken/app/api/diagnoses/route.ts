@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       unknowns:['サーバ内部の安全性や、個人情報の管理状況はこの点検では分かりません。'],explanationSource:'template',
     };
     const reservation = await reserveDiagnosis(value, target.url);
-    if (!reservation.owned) return Response.json(reservation.value, {headers:{'Cache-Control':'no-store'}});
+    if (!reservation.owned) return Response.json(reservation.value, {headers:{'Cache-Control':'no-store','X-Naiken-Cache':'hit'}});
     if (!(await allowRequest('global', 20, 60_000)) || !(await allowRequest(`host:${new URL(target.url).hostname}`, 6, 60_000))) {
       const failure:Diagnosis = {...value,status:'failed',error:'受付が混み合っています。時間をおいてお試しください。'};
       await saveDiagnosis(failure);
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     }
     try {
       const observation = await observe(target.url);
-      const preliminary: Diagnosis = {...value, status:'preliminary',updatedAt:new Date().toISOString(),observation,
+      const preliminary: Diagnosis = {...value, siteName:target.name === new URL(target.url).hostname ? observation.preview?.title || target.name : target.name, status:'preliminary',updatedAt:new Date().toISOString(),observation,
         findings:observation.findings,components:observation.components,checkedCount:observation.checkedCategories.length,
         headline:'公開情報の取得が終わりました。',summary:'確認済みの部品資料と照合します。'};
       await saveDiagnosis(preliminary, 'observing');
