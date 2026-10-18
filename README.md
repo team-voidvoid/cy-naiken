@@ -33,7 +33,7 @@ Webサービスに個人情報を預ける前に、公開情報からその中�
 | [**Decisions API / GPT-6 Luna**](https://developers.openai.com/api/docs/guides/decisions) | 点検済みの公開情報を5段階の基準で評価し、URLの安全性の参考スコア・評価確信度・段階別の分布を表示する。 | [`naiken/lib/decisions-client.ts`](naiken/lib/decisions-client.ts)、[`naiken/lib/safety-score.ts`](naiken/lib/safety-score.ts) |
 
 通常の点検は独自の取得・照合処理で行い、利用者がAI追加調査を開始したときにAgents APIを呼び出します。
-安全性スコアも点検完了後の明示操作でDecisions APIを呼び出し、保存済みの結果を再利用します。
+「AIで内見・スコアリング」ボタン1つでAI追加調査を開始し、完了後に同じタブでDecisions APIによるスコアリングへ自動で進みます。保存済みの結果は再利用します。
 
 ## できること
 

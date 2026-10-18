@@ -60,3 +60,16 @@
 .archive-history a { color: #246737; text-decoration: underline; }
 .archive-button { padding: 12px 18px; border: 1px solid #246737; border-radius: 8px; cursor: pointer; }
 .archive-button:disabled { opacity: .6; cursor: wait; }
+
+/* Distinguish inspection work, observed findings, and the separate reference score. */
+.inspection-coverage.coverage-card{display:block}
+.inspection-coverage .coverage-explanation{margin:8px 0 14px;font-size:11px;line-height:1.8}
+.inspection-coverage.coverage-card li{display:block;padding:11px 0}
+.coverage-item-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px}
+.inspected-label{color:#52644a;font-size:10px;white-space:nowrap}
+.inspection-coverage li p{font-size:10px;line-height:1.8;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}
+.finding-count{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-top:15px}
+.finding-count>span{font-size:11px}
+.finding-count strong{font-size:23px;font-weight:600;white-space:nowrap}
+.finding-count small{font-size:11px;font-weight:400;margin-left:4px}
+@media(max-width:700px){.inspection-coverage .coverage-explanation{font-size:10px}.inspection-coverage.coverage-card li{padding:9px 0}.safety-score-heading .agent-label{white-space:normal}}
